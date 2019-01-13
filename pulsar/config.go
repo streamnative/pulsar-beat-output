@@ -6,6 +6,7 @@ import (
 
     "github.com/apache/pulsar/pulsar-client-go/pulsar"
     "github.com/elastic/beats/libbeat/outputs/codec"
+    "github.com/elastic/beats/libbeat/common/transport/tlscommon"
 )
 
 
@@ -15,10 +16,11 @@ type pulsarConfig struct {
     OperationTimeoutSeconds time.Duration `config:"operation_timeout_seconds"`
     MessageListenerThreads int `config:"message_listener_threads"`
     ConcurrentLookupRequests int `config:"concurrent_lookup_requests"`
+    TLS              *tlscommon.Config `config:"ssl"`
     // Logger func(level LoggerLevel, file string, line int, message string)
-    TLSTrustCertsFilePath string `config:"tls_trust_certs_file_path"`
-    TLSAllowInsecureConnection bool `config:"tls_allow_insecure_connection"`
-    StatsIntervalInSeconds int `config:"stats_interval_in_seconds"`
+    // TLSTrustCertsFilePath string `config:"tls_trust_certs_file_path"`
+    // TLSAllowInsecureConnection bool `config:"tls_allow_insecure_connection"`
+    // StatsIntervalInSeconds int `config:"stats_interval_in_seconds"`
 
     Codec codec.Config `config:"codec"`
     BulkMaxSize int `config:"bulk_max_size"`
