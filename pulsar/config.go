@@ -6,7 +6,6 @@ import (
 
     "github.com/apache/pulsar/pulsar-client-go/pulsar"
     "github.com/elastic/beats/libbeat/outputs/codec"
-    "github.com/elastic/beats/libbeat/common/transport/tlscommon"
 )
 
 
@@ -16,11 +15,12 @@ type pulsarConfig struct {
     OperationTimeoutSeconds time.Duration `config:"operation_timeout_seconds"`
     MessageListenerThreads int `config:"message_listener_threads"`
     ConcurrentLookupRequests int `config:"concurrent_lookup_requests"`
-    TLS              *tlscommon.Config `config:"ssl"`
-    // Logger func(level LoggerLevel, file string, line int, message string)
-    // TLSTrustCertsFilePath string `config:"tls_trust_certs_file_path"`
-    // TLSAllowInsecureConnection bool `config:"tls_allow_insecure_connection"`
-    // StatsIntervalInSeconds int `config:"stats_interval_in_seconds"`
+    UseTls bool `config:"use_tls"`
+    TLSTrustCertsFilePath string `config:"tls_trust_certs_file_path"`
+    TLSAllowInsecureConnection bool `config:"tls_allow_insecure_connection"`
+    CertificatePath string `config:"certificate_path"`
+    PrivateKeyPath string `config:"private_key_path"`
+    StatsIntervalInSeconds int `config:"stats_interval_in_seconds"`
 
     Codec codec.Config `config:"codec"`
     BulkMaxSize int `config:"bulk_max_size"`
@@ -33,14 +33,12 @@ type pulsarConfig struct {
     MaxPendingMessages int `config:"max_pending_messages"`
     MaxPendingMessagesAcrossPartitions int `config:"max_pending_messages_accross_partitions"`
     BlockIfQueueFull bool `config:"block_if_queue_full"`
-    MessageRoutingMode int `config:"message_routing_mode"`
-    HashingScheme int `config:"hashing_schema"`
-    CompressionType int `config:"compression_type"`
-    // MessageRouter func(Message, TopicMetadata) int `config:"message_router"`
+    MessageRoutingMode pulsar.MessageRoutingMode `config:"message_routing_mode"`
+    HashingScheme pulsar.HashingScheme `config:"hashing_schema"`
+    CompressionType pulsar.CompressionType `config:"compression_type"`
     Batching bool `config:"batching"`
     BatchingMaxPublishDelay time.Duration `config:"batching_max_publish_delay"`
     BatchingMaxMessages uint `config:"batching_max_messages"`
-
 }
 
 func defaultConfig() pulsarConfig {
@@ -60,6 +58,22 @@ func (c *pulsarConfig) Validate() error {
     if len(c.Topic) == 0 {
         return errors.New("no topic configured")
     }
+    if c.UseTls {
+        if len(c.TLSTrustCertsFilePath) == 0 {
+            return errors.New("no tls_trust_certs_file_path configured")
+        }
+        if len(c.CertificatePath) > 0 {
+            if len(c.PrivateKeyPath) == 0 {
+                return errors.New("no private_key_path configured")
+            }
+        }
+    }
+    if c.BulkMaxSize < 0 {
+        return errors.New("bulk max size is incorrect")
+    }
+    if c.CompressionType < 0 {
+        return errors.New("compression_type is incorrect")
+    }
     return nil
 }
 
@@ -71,8 +85,68 @@ func initOptions(
         URL: config.URL,
         IOThreads: config.IOThreads,
     }
+    if config.UseTls {
+        clientOptions.TLSTrustCertsFilePath = config.TLSTrustCertsFilePath
+        if len(config.CertificatePath) > 0 {
+            clientOptions.Authentication = pulsar.NewAuthenticationTLS(config.CertificatePath, config.PrivateKeyPath)
+        }
+    }
+    if config.IOThreads > 0 {
+        clientOptions.IOThreads = config.IOThreads
+    }
+    if config.OperationTimeoutSeconds > 0 {
+        clientOptions.OperationTimeoutSeconds = config.OperationTimeoutSeconds * time.Second
+    }
+    if config.MessageListenerThreads > 0 {
+        clientOptions.MessageListenerThreads = config.MessageListenerThreads
+    }
+    if config.ConcurrentLookupRequests > 0 {
+        clientOptions.ConcurrentLookupRequests = config.ConcurrentLookupRequests
+    }
+    if config.TLSAllowInsecureConnection {
+        clientOptions.TLSAllowInsecureConnection = config.TLSAllowInsecureConnection
+    }
+    if config.StatsIntervalInSeconds > 0 {
+        clientOptions.StatsIntervalInSeconds = config.StatsIntervalInSeconds
+    }
     producerOptions := pulsar.ProducerOptions{
         Topic: config.Topic,
+    }
+    if len(config.Name) > 0 {
+        producerOptions.Name = config.Name
+    }
+    if config.SendTimeout > 0 {
+        producerOptions.SendTimeout = config.SendTimeout * time.Second
+    }
+    if len(config.Properties) > 0 {
+        producerOptions.Properties = config.Properties
+    }
+    if config.MaxPendingMessages > 0 {
+        producerOptions.MaxPendingMessages = config.MaxPendingMessages
+    }
+    if config.MaxPendingMessagesAcrossPartitions > 0 {
+        producerOptions.MaxPendingMessagesAcrossPartitions = config.MaxPendingMessagesAcrossPartitions
+    }
+    if config.BlockIfQueueFull {
+        producerOptions.BlockIfQueueFull = config.BlockIfQueueFull
+    }
+    if config.MessageRoutingMode > 0 {
+        producerOptions.MessageRoutingMode = config.MessageRoutingMode
+    }
+    if config.HashingScheme > 0 {
+        producerOptions.HashingScheme = config.HashingScheme
+    }
+    if config.CompressionType > 0 {
+        producerOptions.CompressionType = config.CompressionType
+    }
+    if config.Batching {
+        producerOptions.Batching = config.Batching
+    }
+    if config.BatchingMaxPublishDelay > 0 {
+        producerOptions.BatchingMaxPublishDelay = config.BatchingMaxPublishDelay * time.Second
+    }
+    if config.BatchingMaxMessages > 0 {
+        producerOptions.BatchingMaxMessages = config.BatchingMaxMessages
     }
     return clientOptions, producerOptions, nil
 }
