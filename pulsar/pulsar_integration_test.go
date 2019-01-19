@@ -1,17 +1,20 @@
 package pulsar
 
 import (
+    "encoding/json"
     "fmt"
     "testing"
     "time"
-    "sync"
     "context"
+
+    "github.com/stretchr/testify/assert"
 
     "github.com/elastic/beats/libbeat/beat"
     "github.com/elastic/beats/libbeat/common"
-    "github.com/elastic/beats/libbeat/logp"
     "github.com/elastic/beats/libbeat/outputs"
     "github.com/elastic/beats/libbeat/outputs/outest"
+    _ "github.com/elastic/beats/libbeat/outputs/codec/format"
+    _ "github.com/elastic/beats/libbeat/outputs/codec/json"
     "github.com/apache/pulsar/pulsar-client-go/pulsar"
 )
 
@@ -45,19 +48,18 @@ func flatten(infos []eventInfo) []beat.Event {
     return out
 }
 
-func TestPulsarPublishNoTls(t *testing.T) {
+func TestPulsarPublish(t *testing.T) {
     pulsarConfig := map[string]interface{}{
-        "url": "pulsar://localhost:6650",
+        "url": "pulsar://pulsar-authentication:6650",
         "io_threads": 5,
         "topic": "my_topic",
         "bulk_max_size": 2048,
         "max_retries": 3,
     }
-    testPulsarPublish(t, pulsarConfig)
+    testPulsarPublishMessage(t, pulsarConfig)
 }
 
-func testPulsarPublish(t *testing.T, cfg map[string]interface{}){
-    logp.Info("start integration test pulsar")
+func testPulsarPublishMessage(t *testing.T, cfg map[string]interface{}){
 
     tests := []struct {
         title  string
@@ -67,16 +69,22 @@ func testPulsarPublish(t *testing.T, cfg map[string]interface{}){
     }{
         {
             "test single events",
-            nil,
-            "my-topic1",
-            single(common.MapStr{
-                "url": "test-host",
+            map[string]interface{}{
+                "url": "pulsar+ssl://pulsar-authentication:6651",
                 "topic": "my-topic1",
                 "name": "test",
+                "use_tls": true,
+                "tls_trust_certs_file_path": "/go/src/github.com/AmateurEvents/filebeat-ouput-pulsar/certs/ca.cert.pem",
+                "certificate_path": "/go/src/github.com/AmateurEvents/filebeat-ouput-pulsar/role/admin.cert.pem",
+                "private_key_path": "/go/src/github.com/AmateurEvents/filebeat-ouput-pulsar/role/admin.key-pk8.pem",
+            },
+            "my-topic1",
+            single(common.MapStr{
+                "type": "log",
+                "message": "test123",
             }),
         },
     }
-
     for i, test := range tests {
         config := makeConfig(t, cfg)
         if test.config != nil {
@@ -95,24 +103,18 @@ func testPulsarPublish(t *testing.T, cfg map[string]interface{}){
             }
             defer output.Close()
             // publish test events
-            var wg sync.WaitGroup
             for i := range test.events {
                 batch := outest.NewBatch(test.events[i].events...)
-                batch.OnSignal = func(_ outest.BatchSignal) {
-                    wg.Done()
-                }
 
-                wg.Add(1)
                 output.Publish(batch)
             }
 
-            // wait for all published batches to be ACKed
-            wg.Wait()
             expected := flatten(test.events)
 
-            // stored := testReadFromPulsarTopic(t, output.clientOptions, test.topic, len(expected))
-            testReadFromPulsarTopic(t, output.clientOptions, test.topic, len(expected))
-
+            stored := testReadFromPulsarTopic(t, output.clientOptions, test.topic, len(expected))
+            for i, d := range expected {
+                validateJSON(t, stored[i].Payload(), d)
+            }
         })
     }
 }
@@ -147,6 +149,16 @@ func testReadFromPulsarTopic (
         consumer.Ack(msg)
         messages = append(messages, msg)
     }
-    
     return messages
+}
+
+func validateJSON(t *testing.T, value []byte, event beat.Event) {
+    var decoded map[string]interface{}
+    err := json.Unmarshal(value, &decoded)
+    if err != nil {
+        t.Errorf("can not json decode event value: %v", value)
+        return
+    }
+    assert.Equal(t, decoded["type"], event.Fields["type"])
+    assert.Equal(t, decoded["message"], event.Fields["message"])
 }
