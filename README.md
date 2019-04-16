@@ -22,5 +22,6 @@ su
 go get github.com/AmateurEvents/filebeat-ouput-pulsar
 cd $GOPATH/src/github.com/AmateurEvents/filebeat-ouput-pulsar
 go build
+./filebeat-ouput-pulsar enable system
 ./filebeat-ouput-pulsar -e
 ```

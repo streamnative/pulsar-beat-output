@@ -1,0 +1,87 @@
+{
+  "description": "Pipeline for parsing IIS access logs. Requires the geoip and user_agent plugins.",
+  "processors": [{
+    "grok": {
+      "field": "message",
+      "patterns":[
+        "%{TIMESTAMP_ISO8601:iis.access.time} %{IPORHOST:destination.ip} %{WORD:http.request.method} %{URIPATH:url.path} %{NOTSPACE:url.query} %{NUMBER:destination.port:long} %{NOTSPACE:user.name} %{IPORHOST:source.ip} %{NOTSPACE:iis.access.agent} %{NOTSPACE:http.request.referrer} %{NUMBER:http.response.status_code:long} %{NUMBER:iis.access.sub_status:long} %{NUMBER:iis.access.win32_status:long} %{NUMBER:iis.access.request_time_ms:long}",
+        "%{TIMESTAMP_ISO8601:iis.access.time} %{NOTSPACE:iis.access.site_name} %{WORD:http.request.method} %{URIPATH:url.path} %{NOTSPACE:url.query} %{NUMBER:destination.port:long} %{NOTSPACE:user.name} %{IPORHOST:source.ip} %{NOTSPACE:iis.access.agent} %{NOTSPACE:iis.access.cookie} %{NOTSPACE:http.request.referrer} %{NOTSPACE:destination.domain} %{NUMBER:http.response.status_code:long} %{NUMBER:iis.access.sub_status:long} %{NUMBER:iis.access.win32_status:long} %{NUMBER:iis.access.body_sent.bytes:long} %{NUMBER:iis.access.body_received.bytes:long} %{NUMBER:iis.access.request_time_ms:long}",
+        "%{TIMESTAMP_ISO8601:iis.access.time} %{NOTSPACE:iis.access.site_name} %{NOTSPACE:iis.access.server_name} %{IPORHOST:destination.ip} %{WORD:http.request.method} %{URIPATH:url.path} %{NOTSPACE:url.query} %{NUMBER:destination.port:long} %{NOTSPACE:user.name} %{IPORHOST:source.ip} HTTP/%{NUMBER:http.version} %{NOTSPACE:iis.access.agent} %{NOTSPACE:iis.access.cookie} %{NOTSPACE:http.request.referrer} %{NOTSPACE:destination.domain} %{NUMBER:http.response.status_code:long} %{NUMBER:iis.access.sub_status:long} %{NUMBER:iis.access.win32_status:long} %{NUMBER:iis.access.body_sent.bytes:long} %{NUMBER:iis.access.body_received.bytes:long} %{NUMBER:iis.access.request_time_ms:long}"
+        ],
+      "ignore_missing": true
+    }
+  }, {
+    "remove":{
+      "field": "message"
+    }
+  }, {
+    "rename": {
+      "field": "@timestamp",
+      "target_field": "read_timestamp"
+    }
+  }, {
+    "date": {
+      "field": "iis.access.time",
+      "target_field": "@timestamp",
+      "formats": ["yyyy-MM-dd HH:mm:ss"]
+    }
+  }, {
+    "remove": {
+      "field": "iis.access.time"
+    }
+  }, {
+    "urldecode": {
+      "field": "iis.access.agent"
+    }
+  }, {
+    "user_agent": {
+      "field": "iis.access.agent"
+    }
+  }, {
+    "rename": {
+      "field": "user_agent.os",
+      "target_field": "user_agent.os.full_name",
+      "ignore_missing": true
+    }
+  }, {
+    "rename": {
+      "field": "user_agent.os_name",
+      "target_field": "user_agent.os.name",
+      "ignore_missing": true
+    }
+  }, {
+    "rename": {
+      "field": "user_agent.os_major",
+      "target_field": "user_agent.os.major",
+      "ignore_missing": true
+    }
+  }, {
+    "rename": {
+      "field": "user_agent.os_minor",
+      "target_field": "user_agent.os.minor",
+      "ignore_missing": true
+    }
+  }, {
+    "rename": {
+      "field": "user_agent.os_patch",
+      "target_field": "user_agent.os.patch",
+      "ignore_missing": true
+    }
+  }, {
+    "rename": {
+      "field": "iis.access.agent",
+      "target_field": "user_agent.original"
+    }
+  }, {
+    "geoip": {
+      "field": "source.ip",
+      "target_field": "source.geo"
+    }
+  }],
+  "on_failure" : [{
+    "set" : {
+      "field" : "error.message",
+      "value" : "{{ _ingest.on_failure_message }}"
+    }
+  }]
+}

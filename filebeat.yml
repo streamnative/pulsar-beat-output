@@ -67,10 +67,10 @@ filebeat.inputs:
 
 filebeat.config.modules:
   # Glob pattern for configuration loading
-  path: ${path.config}/modules.d/*.yml
+  path: /go/src/github.com/elastic/beats/filebeat/modules.d/*.yml
 
   # Set to true to enable config reloading
-  reload.enabled: false
+  reload.enabled: true
 
   # Period on which files under path should be checked for changes
   #reload.period: 10s
@@ -144,9 +144,18 @@ setup.kibana:
 
 # Configure what output to use when sending the data collected by the beat.
 
-#-------------------------- pulsar output ------------------------------
+# -------------------------- console output ------------------------------
+# output.console:
+#   pretty: true
+# -------------------------- pulsar output ------------------------------
 output.pulsar:
-  url: "pulsar://localhost:6650"
+  # hosts: ["https://pulsar-authentication:8443"]
+  hosts: ["pulsar+ssl://pulsar-authentication:6651"]
+  use_tls: true
+  tls_trust_certs_file_path: /go/src/github.com/AmateurEvents/filebeat-ouput-pulsar/certs/ca.cert.pem
+  certificate_path: /go/src/github.com/AmateurEvents/filebeat-ouput-pulsar/role/admin.cert.pem
+  private_key_path: /go/src/github.com/AmateurEvents/filebeat-ouput-pulsar/role/admin.key-pk8.pem
+  url: "pulsar+ssl://pulsar-authentication:6651"
   topic: my_topic2
   name: test123
 

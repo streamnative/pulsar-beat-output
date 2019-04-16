@@ -1,0 +1,22 @@
+package: github.com/AmateurEvents/filebeat-ouput-pulsar
+import:
+- package: github.com/apache/pulsar
+  version: v2.3.1
+  subpackages:
+  - pulsar-client-go/pulsar
+- package: github.com/elastic/beats
+  version: v7.0.0
+  subpackages:
+  - filebeat/cmd
+  - libbeat/asset
+  - libbeat/beat
+  - libbeat/common
+  - libbeat/logp
+  - libbeat/outputs
+  - libbeat/outputs/codec
+  - libbeat/publisher
+testImport:
+- package: github.com/stretchr/testify
+  version: v1.3.0
+  subpackages:
+  - assert

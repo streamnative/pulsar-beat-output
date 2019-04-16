@@ -1,0 +1,14 @@
+type: log
+paths:
+{{ range $i, $path := .paths }}
+ - {{$path}}
+{{ end }}
+exclude_files: [".gz$"]
+multiline:
+  pattern: '^\['
+  negate: true
+  match: after
+{{ if .convert_timezone }}
+processors:
+- add_locale: ~
+{{ end }}
