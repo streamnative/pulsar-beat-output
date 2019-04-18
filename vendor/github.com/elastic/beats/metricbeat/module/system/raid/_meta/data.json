@@ -1,0 +1,32 @@
+{
+    "@timestamp": "2017-10-12T08:05:34.853Z",
+    "agent": {
+        "hostname": "host.example.com",
+        "name": "host.example.com"
+    },
+    "event": {
+        "dataset": "system.raid",
+        "duration": 115000,
+        "module": "system"
+    },
+    "metricset": {
+        "name": "raid"
+    },
+    "service": {
+        "type": "system"
+    },
+    "system": {
+        "raid": {
+            "activity_state": "active",
+            "blocks": {
+                "synced": 5853468288,
+                "total": 5853468288
+            },
+            "disks": {
+                "active": 8,
+                "total": 8
+            },
+            "name": "md3"
+        }
+    }
+}

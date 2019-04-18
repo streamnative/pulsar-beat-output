@@ -1,0 +1,12 @@
+:beatsdevguide: http://www.elastic.co/guide/en/beats/devguide/{branch}
+:dashboards: https://artifacts.elastic.co/downloads/beats/beats-dashboards/beats-dashboards-{stack-version}.zip
+:dockerimage: docker.elastic.co/beats/{beatname_lc}:{version}
+:dockerconfig: https://raw.githubusercontent.com/elastic/beats/{branch}/deploy/docker/{beatname_lc}.docker.yml
+:downloads: https://artifacts.elastic.co/downloads/beats
+
+:cm-ui: Central Management
+:libbeat-docs: Beats Platform Reference
+:beat_monitoring_user: beats_system
+:beat_monitoring_user_version: 6.3.0
+:beat_monitoring_version: 6.2
+:beat_version_key: agent.version
