@@ -1,0 +1,39 @@
+{
+    "@timestamp": "2017-10-12T08:05:34.853Z",
+    "agent": {
+        "hostname": "host.example.com",
+        "name": "host.example.com"
+    },
+    "event": {
+        "dataset": "kibana.status",
+        "duration": 115000,
+        "module": "kibana"
+    },
+    "kibana": {
+        "status": {
+            "metrics": {
+                "concurrent_connections": 0,
+                "requests": {
+                    "disconnects": 0,
+                    "total": 0
+                }
+            },
+            "name": "Shaunaks-MBP-2",
+            "status": {
+                "overall": {
+                    "state": "green"
+                }
+            }
+        }
+    },
+    "metricset": {
+        "name": "status"
+    },
+    "service": {
+        "address": "127.0.0.1:5601",
+        "id": "5b2de169-2785-441b-ae8c-186a1936b17d",
+        "name": "kibana",
+        "type": "kibana",
+        "version": "7.0.0"
+    }
+}

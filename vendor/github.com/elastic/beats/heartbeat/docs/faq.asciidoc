@@ -1,0 +1,9 @@
+[[faq]]
+== Frequently asked questions
+
+This section contains frequently asked questions about Heartbeat. Also check
+out the
+https://discuss.elastic.co/c/beats/heartbeat[Heartbeat discussion forum].
+
+include::{libbeat-dir}/docs/faq-limit-bandwidth.asciidoc[]
+include::{libbeat-dir}/docs/shared-faq.asciidoc[]

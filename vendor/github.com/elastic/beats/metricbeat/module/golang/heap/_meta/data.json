@@ -1,0 +1,59 @@
+{
+    "@timestamp": "2017-10-12T08:05:34.853Z",
+    "agent": {
+        "hostname": "host.example.com",
+        "name": "host.example.com"
+    },
+    "event": {
+        "dataset": "golang.heap",
+        "duration": 115000,
+        "module": "golang"
+    },
+    "golang": {
+        "heap": {
+            "allocations": {
+                "active": 16670720,
+                "allocated": 14115776,
+                "frees": 2830899,
+                "idle": 6496256,
+                "mallocs": 2921961,
+                "objects": 91062,
+                "total": 458114744
+            },
+            "cmdline": "metricbeat --httpprof :6060 -e",
+            "gc": {
+                "cpu_fraction": 0.0000798538053427137,
+                "next_gc_limit": 22896432,
+                "pause": {
+                    "avg": {
+                        "ns": 755847
+                    },
+                    "count": 77,
+                    "max": {
+                        "ns": 7537934
+                    },
+                    "sum": {
+                        "ns": 58200246
+                    }
+                },
+                "total_count": 77,
+                "total_pause": {
+                    "ns": 58200246
+                }
+            },
+            "system": {
+                "obtained": 23166976,
+                "released": 0,
+                "stack": 950272,
+                "total": 27908344
+            }
+        }
+    },
+    "metricset": {
+        "name": "heap"
+    },
+    "service": {
+        "address": "127.0.0.1:6060",
+        "type": "golang"
+    }
+}
