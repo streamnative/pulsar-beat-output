@@ -25,6 +25,7 @@ package main
 
 import (
     "os"
+    _ "github.com/streamnative/beat-ouput-pulsar/pulsar"
     "github.com/elastic/beats/x-pack/filebeat/cmd"
 )
 
@@ -44,14 +45,15 @@ go build -o filebeat main.go
 #### Add following config to filebeat.yml
 ```
 output.pulsar:
-  hosts: ["pulsar://pulsar-authentication:6650"]
+  hosts: ["pulsar://localhost:6650"]
   topic: my_topic
   name: test123
 ```
 #### Start filebeat
 ```
-filebeat enable system
-filebeat -c filebeat.yml
+./filebeat modules enable system
+./filebeat modules list
+./filebeat -c filebeat.yml
 ```
 
 #### Build other beat, for example metricbeat
@@ -63,6 +65,7 @@ package main
 
 import (
     "os"
+    _ "github.com/streamnative/beat-ouput-pulsar/pulsar"
     "github.com/elastic/beats/x-pack/metricbeat/cmd"
 )
 
