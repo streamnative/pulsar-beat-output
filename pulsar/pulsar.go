@@ -30,7 +30,9 @@ func init() {
 	outputs.RegisterType("pulsar", makePulsar)
 }
 
-func makePulsar(beat beat.Info,
+func makePulsar(
+	_ outputs.IndexManager,
+	beat beat.Info,
 	observer outputs.Observer,
 	cfg *common.Config,
 ) (outputs.Group, error) {
