@@ -1,19 +1,21 @@
-// Licensed to Elasticsearch B.V. under one or more contributor
-// license agreements. See the NOTICE file distributed with
-// this work for additional information regarding copyright
-// ownership. Elasticsearch B.V. licenses this file to you under
-// the Apache License, Version 2.0 (the "License"); you may
-// not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing,
-// software distributed under the License is distributed on an
-// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-// KIND, either express or implied.  See the License for the
-// specific language governing permissions and limitations
-// under the License.
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 
 package pulsar
 
@@ -91,9 +93,9 @@ func testPulsarPublishMessage(t *testing.T, cfg map[string]interface{}) {
 				"topic":                     "my-topic1",
 				"name":                      "test",
 				"use_tls":                   true,
-				"tls_trust_certs_file_path": "/go/src/github.com/AmateurEvents/filebeat-ouput-pulsar/certs/ca.cert.pem",
-				"certificate_path":          "/go/src/github.com/AmateurEvents/filebeat-ouput-pulsar/role/admin.cert.pem",
-				"private_key_path":          "/go/src/github.com/AmateurEvents/filebeat-ouput-pulsar/role/admin.key-pk8.pem",
+				"tls_trust_certs_file_path": "/go/src/github.com/streamnative/beat-ouput-pulsar/certs/ca.cert.pem",
+				"certificate_path":          "/go/src/github.com/streamnative/beat-ouput-pulsar/role/admin.cert.pem",
+				"private_key_path":          "/go/src/github.com/streamnative/beat-ouput-pulsar/role/admin.key-pk8.pem",
 			},
 			"my-topic1",
 			single(common.MapStr{

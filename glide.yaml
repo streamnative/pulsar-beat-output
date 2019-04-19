@@ -1,4 +1,4 @@
-package: github.com/AmateurEvents/filebeat-ouput-pulsar
+package: github.com/streamnative/beat-ouput-pulsar
 import:
 - package: github.com/apache/pulsar
   version: v2.3.1
