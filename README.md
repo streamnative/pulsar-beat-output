@@ -105,7 +105,7 @@ docker run -d -it --network pulsar-beat -p 6650:6650 -p 8080:8080 -v $PWD/data:/
 #### Add following configuration to filebeat.yml
 ```
 output.pulsar:
-  url: ["pulsar://pulsar-beat-standalone:6650"]
+  url: "pulsar://pulsar-beat-standalone:6650"
   topic: my_topic
   name: test123
 ```
@@ -114,9 +114,8 @@ output.pulsar:
 ```
 docker run -it --network pulsar-beat --name filebeat pulsar-beat /bin/bash
 cd $GOPATH/src/github.com/streamnative/beat-ouput-pulsar
-chown -R root:root filebeat.yml
-chown -R root:root test_module/modules.d/system.yml
-chown -R root:root test_module/module/system
+go build -o filebeat main.go
+chown -R root:root filebeat.yml test_module/modules.d/system.yml test_module/module/system
 cp test_module/module/system/auth/test/test.log /var/log/messages.log
 cp filebeat filebeat.yml test_module
 cd test_module
