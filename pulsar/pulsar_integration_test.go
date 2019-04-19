@@ -111,7 +111,7 @@ func testPulsarPublishMessage(t *testing.T, cfg map[string]interface{}) {
 		}
 		name := fmt.Sprintf("run test(%v): %v", i, test.title)
 		t.Run(name, func(t *testing.T) {
-			grp, err := makePulsar(beat.Info{Beat: "libbeat"}, outputs.NewNilObserver(), config)
+			grp, err := makePulsar(nil, beat.Info{Beat: "libbeat"}, outputs.NewNilObserver(), config)
 			if err != nil {
 				t.Fatal(err)
 			}
