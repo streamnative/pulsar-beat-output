@@ -149,7 +149,7 @@ setup.kibana:
 #   pretty: true
 # -------------------------- pulsar output ------------------------------
 output.pulsar:
-  hosts: ["pulsar://localhost:6650"]
+  url: "pulsar://pulsar-standalone3:6650"
   topic: my_topic
   name: test123
 

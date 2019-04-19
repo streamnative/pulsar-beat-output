@@ -42,10 +42,10 @@ go build -o filebeat main.go
 
 ### Usage
 
-#### Add following config to filebeat.yml
+#### Add following configuration to filebeat.yml
 ```
 output.pulsar:
-  hosts: ["pulsar://localhost:6650"]
+  url: ["pulsar://localhost:6650"]
   topic: my_topic
   name: test123
 ```
@@ -79,13 +79,65 @@ func main() {
 ```
 go build -o metricbeat main.go
 ```
+### Build and test with docker
+
+#### Requirements
+
+- [Docker](https://docs.docker.com/docker-for-mac/install/)
+
+#### Build Beat images
+
+```
+docker build -t pulsar-beat .
+```
+
+#### Create network
+
+```
+docker network create pulsar-beat
+```
+
+#### Start Pulsar service
+```
+docker run -d -it --network pulsar-beat -p 6650:6650 -p 8080:8080 -v $PWD/data:/pulsar/data --name pulsar-beat-standalone apachepulsar/pulsar:2.3.0 bin/pulsar standalone
+```
+
+#### Add following configuration to filebeat.yml
+```
+output.pulsar:
+  url: ["pulsar://pulsar-beat-standalone:6650"]
+  topic: my_topic
+  name: test123
+```
+
+#### Start Filebeat
+```
+docker run -it --network pulsar-beat --name filebeat pulsar-beat /bin/bash
+cd $GOPATH/src/github.com/streamnative/beat-ouput-pulsar
+chown -R root:root filebeat.yml
+chown -R root:root test_module/modules.d/system.yml
+chown -R root:root test_module/module/system
+cp test_module/module/system/auth/test/test.log /var/log/messages.log
+cp filebeat filebeat.yml test_module
+cd test_module
+./filebeat modules enable system
+./filebeat -c filebeat.yml -e
+```
+
+#### New open a window for consumer message
+```
+docker cp pulsar-client.py pulsar-beat-standalone:/pulsar
+docker exec -it pulsar-beat-standalone /bin/bash
+python pulsar-client.py
+```
+Now you can see the information collected from filebeat.
 
 ### Configurations
 
 #### Client
 |Name|Description|Default|
 |---|---|---|
-|url| Whether non-persistent topics are enabled on the broker |pulsar://localhost:6650|
+|url| Configure the service URL for the Pulsar service |pulsar://localhost:6650|
 |certificate_path| path of tls cert file |""|
 |private_key_path| path of tls key file |""|
 |use_tls| Whether to turn on TLS, if to start, use protocol pulsar+ssl |false|
@@ -120,3 +172,5 @@ If you encounter problems with dynamic libraries，please reference:https://puls
 
 #### Build Packetbeat
 Reference https://github.com/elastic/beats/issues/11054.
+
+#### Start beat
