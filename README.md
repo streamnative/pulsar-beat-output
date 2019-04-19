@@ -82,7 +82,7 @@ go build -o metricbeat main.go
 #### Client
 |Name|Description|Default|
 |---|---|---|
-|url| Whether non-persistent topics are enabled on the broker |localhost:6650|
+|url| Whether non-persistent topics are enabled on the broker |pulsar://localhost:6650|
 |certificate_path| path of tls cert file |""|
 |private_key_path| path of tls key file |""|
 |use_tls| Whether to turn on TLS, if to start, use protocol pulsar+ssl |false|
@@ -110,7 +110,7 @@ go build -o metricbeat main.go
 
 ### FAQ
 
-#### install Pulsar Go Client
+#### Install Pulsar Go Client
 Reference https://pulsar.apache.org/docs/en/client-libraries-go/ .
 
 If you encounter problems with dynamic libraries，please reference:https://pulsar.apache.org/docs/en/client-libraries-cpp/.
