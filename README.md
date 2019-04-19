@@ -176,4 +176,6 @@ Reference https://github.com/elastic/beats/issues/11054.
 ```
 Exiting: error loading config file: config file ("filebeat.yml") must be owned by the user identifier (uid=0) or root
 ```
+```
 chown -R root:root filebeat.yml
+```
