@@ -45,7 +45,7 @@ go build -o filebeat main.go
 #### Add following configuration to filebeat.yml
 ```
 output.pulsar:
-  url: ["pulsar://localhost:6650"]
+  url: "pulsar://localhost:6650"
   topic: my_topic
   name: test123
 ```
@@ -53,7 +53,7 @@ output.pulsar:
 ```
 ./filebeat modules enable system
 ./filebeat modules list
-./filebeat -c filebeat.yml
+./filebeat -c filebeat.yml -e
 ```
 
 #### Build other beat, for example metricbeat
