@@ -16,7 +16,7 @@ RUN wget https://archive.apache.org/dist/pulsar/pulsar-2.3.0/DEB/apache-pulsar-c
 RUN dpkg -i apache-pulsar-client.deb
 RUN dpkg -i apache-pulsar-client-dev.deb
 
-RUN git clone https://github.com/streamnative/beat-ouput-pulsar
+RUN go get github.com/streamnative/beat-ouput-pulsar
 RUN go build $GOPATH/src/github.com/streamnative/beat-ouput-pulsar
 COPY ./filebeat.yml /go/
 RUN ls -l

@@ -33,4 +33,6 @@ beat.db
 *.test
 *.prof
 *.pyc
+data/*
+logs/*
 
