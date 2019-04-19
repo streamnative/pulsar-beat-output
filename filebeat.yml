@@ -67,7 +67,7 @@ filebeat.inputs:
 
 filebeat.config.modules:
   # Glob pattern for configuration loading
-  path: /go/src/github.com/elastic/beats/filebeat/modules.d/*.yml
+  path: ./modules.d/*.yml
 
   # Set to true to enable config reloading
   reload.enabled: true
@@ -149,7 +149,7 @@ setup.kibana:
 #   pretty: true
 # -------------------------- pulsar output ------------------------------
 output.pulsar:
-  hosts: ["pulsar://pulsar-authentication:6650"]
+  hosts: ["pulsar://localhost:6650"]
   topic: my_topic
   name: test123
 
