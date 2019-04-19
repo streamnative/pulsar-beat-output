@@ -149,8 +149,14 @@ setup.kibana:
 #   pretty: true
 # -------------------------- pulsar output ------------------------------
 output.pulsar:
-  hosts: ["pulsar://pulsar-authentication:6650"]
-  topic: my_topic
+  # hosts: ["https://pulsar-authentication:8443"]
+  hosts: ["pulsar+ssl://pulsar-authentication:6651"]
+  use_tls: true
+  tls_trust_certs_file_path: /go/src/github.com/AmateurEvents/beat-ouput-pulsar/certs/ca.cert.pem
+  certificate_path: /go/src/github.com/AmateurEvents/beat-ouput-pulsar/role/admin.cert.pem
+  private_key_path: /go/src/github.com/AmateurEvents/beat-ouput-pulsar/role/admin.key-pk8.pem
+  url: "pulsar+ssl://pulsar-authentication:6651"
+  topic: my_topic2
   name: test123
 
 #-------------------------- Elasticsearch output ------------------------------

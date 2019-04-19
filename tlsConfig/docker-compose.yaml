@@ -1,0 +1,30 @@
+version: '2.1'
+services:
+  beat:
+    build: ${PWD}/.
+    depends_on:
+      - proxy_dep
+    environment:
+      - PULSAR_HOST=pulsar
+      - PULSAR_PORT=6650
+      - PULSAR_PORT_TLS=6651
+      # Setup work environment
+      - LIBBEAT_PATH=/go/src/github.com/elastic/beats/libbeat
+    volumes:
+      - ${PWD}/..:/go/src/github.com/elastic/beats/
+      # Used for docker integration tests:
+      - /var/run/docker.sock:/var/run/docker.sock
+    working_dir: /go/src/github.com/elastic/beats/libbeat
+    # command: ${PWD}/filebeat -e
+
+  # This is a proxy used to block beats until all services are healthy.
+  # See: https://github.com/docker/compose/issues/4369
+  proxy_dep:
+    image: busybox
+    depends_on:
+      - pulsar
+
+  pulsar:
+    build: ./pulsar
+    volumes:
+      - ${PWD}/data:/pulsar/data
