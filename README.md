@@ -1,18 +1,18 @@
 ## Beat Output Pulsar
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
-[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fstreamnative%2Fbeat-ouput-pulsar.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fstreamnative%2Fbeat-ouput-pulsar?ref=badge_shield)
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fstreamnative%2Fpulsar-beat-output.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fstreamnative%2Fpulsar-beat-output?ref=badge_shield)
 
 This is a output implementation of [elastic beats](https://github.com/elastic/beats) for support [Filebeat](https://github.com/elastic/beats/tree/master/filebeat), [Metricbeat](https://github.com/elastic/beats/tree/master/metricbeat), [Functionbeat](https://github.com/elastic/beats/tree/master/x-pack/functionbeat), [Winlogbeat](https://github.com/elastic/beats/tree/master/winlogbeat), [Journalbeat](https://github.com/elastic/beats/tree/master/journalbeat), [Auditbeat](https://github.com/elastic/beats/tree/master/auditbeat) to [Apache Pulsar](https://github.com/apache/pulsar)
 
 ### Compatibility
 This output is developed and tested using Apache Pulsar Client 2.3.0 and Beats 7.0.0
 
-### Download beat-output-pulsar
+### Download pulsar-beat-output
 
 ```
-go get github.com/streamnative/beat-ouput-pulsar
-cd $GOPATH/src/github.com/streamnative/beat-ouput-pulsar
+go get github.com/streamnative/pulsar-beat-output
+cd $GOPATH/src/github.com/streamnative/pulsar-beat-output
 ```
 
 ### Build
@@ -26,7 +26,7 @@ package main
 
 import (
     "os"
-    _ "github.com/streamnative/beat-ouput-pulsar/pulsar"
+    _ "github.com/streamnative/pulsar-beat-output/pulsar"
     "github.com/elastic/beats/x-pack/filebeat/cmd"
 )
 
@@ -66,7 +66,7 @@ package main
 
 import (
     "os"
-    _ "github.com/streamnative/beat-ouput-pulsar/pulsar"
+    _ "github.com/streamnative/pulsar-beat-output/pulsar"
     "github.com/elastic/beats/x-pack/metricbeat/cmd"
 )
 
@@ -114,7 +114,7 @@ output.pulsar:
 #### Start Filebeat
 ```
 docker run -it --network pulsar-beat --name filebeat pulsar-beat /bin/bash
-cd $GOPATH/src/github.com/streamnative/beat-ouput-pulsar
+cd $GOPATH/src/github.com/streamnative/pulsar-beat-output
 go build -o filebeat main.go
 chown -R root:root filebeat.yml test_module/modules.d/system.yml test_module/module/system
 cp test_module/module/system/auth/test/test.log /var/log/messages.log
@@ -182,4 +182,4 @@ chown -R root:root filebeat.yml
 ```
 
 ## License
-[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fstreamnative%2Fbeat-ouput-pulsar.svg?type=large)](https://app.fossa.io/projects/git%2Bgithub.com%2Fstreamnative%2Fbeat-ouput-pulsar?ref=badge_large)
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fstreamnative%2Fpulsar-beat-output.svg?type=large)](https://app.fossa.io/projects/git%2Bgithub.com%2Fstreamnative%2Fpulsar-beat-output?ref=badge_large)

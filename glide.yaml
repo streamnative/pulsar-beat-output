@@ -1,4 +1,4 @@
-package: github.com/streamnative/beat-ouput-pulsar
+package: github.com/streamnative/pulsar-beat-output
 import:
 - package: github.com/apache/pulsar
   version: v2.3.1

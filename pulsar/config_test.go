@@ -61,7 +61,7 @@ func Test_pulsarConfig_Validate(t *testing.T) {
 			fields{
 				"pulsar://localhost:6650",
 				true,
-				"/go/src/github.com/streamnative/beat-ouput-pulsar/certs/ca.cert.pem",
+				"/go/src/github.com/streamnative/pulsar-beat-output/certs/ca.cert.pem",
 				"persistent://public/default/my-topic1",
 			},
 			false,
