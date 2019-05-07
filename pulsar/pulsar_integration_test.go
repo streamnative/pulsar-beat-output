@@ -93,9 +93,9 @@ func testPulsarPublishMessage(t *testing.T, cfg map[string]interface{}) {
 				"topic":                     "my-topic1",
 				"name":                      "test",
 				"use_tls":                   true,
-				"tls_trust_certs_file_path": "/go/src/github.com/streamnative/beat-ouput-pulsar/certs/ca.cert.pem",
-				"certificate_path":          "/go/src/github.com/streamnative/beat-ouput-pulsar/role/admin.cert.pem",
-				"private_key_path":          "/go/src/github.com/streamnative/beat-ouput-pulsar/role/admin.key-pk8.pem",
+				"tls_trust_certs_file_path": "/go/src/github.com/streamnative/pulsar-beat-output/certs/ca.cert.pem",
+				"certificate_path":          "/go/src/github.com/streamnative/pulsar-beat-output/role/admin.cert.pem",
+				"private_key_path":          "/go/src/github.com/streamnative/pulsar-beat-output/role/admin.key-pk8.pem",
 			},
 			"my-topic1",
 			single(common.MapStr{
