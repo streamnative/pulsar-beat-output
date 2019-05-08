@@ -57,7 +57,7 @@ output.pulsar:
 ./filebeat -c filebeat.yml -e
 ```
 
-#### Build other beat, for example metricbeat
+#### Build other beat
 
 ```
 go build -o metricbeat metricbeat.go
