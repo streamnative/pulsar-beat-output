@@ -57,28 +57,16 @@ output.pulsar:
 ./filebeat -c filebeat.yml -e
 ```
 
-#### Build other beat, for example metricbeat
-
-Edit main.go file
+#### Build other beat
 
 ```
-package main
-
-import (
-    "os"
-    _ "github.com/streamnative/pulsar-beat-output/pulsar"
-    "github.com/elastic/beats/x-pack/metricbeat/cmd"
-)
-
-func main() {
-    if err := cmd.RootCmd.Execute(); err != nil {
-        os.Exit(1)
-    }
-}
-```
-
-```
-go build -o metricbeat main.go
+go build -o metricbeat metricbeat.go
+go build -o filebeat filebeat.go
+go build -o functionbeat functionbeat.go
+go build -o journalbeat journalbeat.go
+go build -o auditbeat auditbeat.go
+go build -o winlogbeat winlogbeat.go
+go build -o packetbeat packetbeat.go
 ```
 ### Build and test with docker
 
@@ -172,6 +160,26 @@ If you encounter problems with dynamic libraries，please reference:https://puls
 
 #### Build Packetbeat
 Reference https://github.com/elastic/beats/issues/11054.
+
+#### Build journalbeat.go
+
+```
+systemd/sd-journal.h: No such file or directory
+```
+
+```
+apt-get update
+apt-get install libsystemd-dev
+```
+
+#### Build auditbeat.go
+```
+vendor/github.com/elastic/beats/x-pack/auditbeat/module/system/package/rpm_linux.go:23:24: fatal error: rpm/rpmlib.h: No such file or directory
+```
+
+```
+aapt-get install librpm-dev
+```
 
 #### Start beat
 ```
