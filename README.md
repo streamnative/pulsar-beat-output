@@ -6,7 +6,7 @@
 This is a output implementation of [elastic beats](https://github.com/elastic/beats) for support [Filebeat](https://github.com/elastic/beats/tree/master/filebeat), [Metricbeat](https://github.com/elastic/beats/tree/master/metricbeat), [Functionbeat](https://github.com/elastic/beats/tree/master/x-pack/functionbeat), [Winlogbeat](https://github.com/elastic/beats/tree/master/winlogbeat), [Journalbeat](https://github.com/elastic/beats/tree/master/journalbeat), [Auditbeat](https://github.com/elastic/beats/tree/master/auditbeat) to [Apache Pulsar](https://github.com/apache/pulsar)
 
 ### Compatibility
-This output is developed and tested using Apache Pulsar Client 2.3.0 and Beats 7.0.0
+This output is developed and tested using Apache Pulsar Client 2.4.0 and Beats 7.3.1
 
 ### Download pulsar-beat-output
 
@@ -90,7 +90,7 @@ docker network create pulsar-beat
 
 #### Start Pulsar service
 ```
-docker run -d -it --network pulsar-beat -p 6650:6650 -p 8080:8080 -v $PWD/data:/pulsar/data --name pulsar-beat-standalone apachepulsar/pulsar:2.3.0 bin/pulsar standalone
+docker run -d -it --network pulsar-beat -p 6650:6650 -p 8080:8080 -v $PWD/data:/pulsar/data --name pulsar-beat-standalone apachepulsar/pulsar:2.4.0 bin/pulsar standalone
 ```
 
 #### Add following configuration to filebeat.yml
