@@ -11,8 +11,10 @@ This output is developed and tested using Apache Pulsar Client 2.3.0 and Beats 7
 ### Download pulsar-beat-output
 
 ```
-go get github.com/streamnative/pulsar-beat-output
-cd $GOPATH/src/github.com/streamnative/pulsar-beat-output
+mkdir -p $GOPATH/src/github.com/streamnative/
+cd $GOPATH/src/github.com/streamnative/
+git clone https://github.com/streamnative/pulsar-beat-output
+cd pulsar-beat-output
 ```
 
 ### Build
@@ -101,8 +103,12 @@ output.pulsar:
 
 #### Start Filebeat
 ```
-docker run -it --network pulsar-beat --name filebeat pulsar-beat /bin/bash
-cd $GOPATH/src/github.com/streamnative/pulsar-beat-output
+docker pull golang:1.12.4
+docker run -it --network pulsar-beat --name filebeat golang:1.12.4 /bin/bash
+mkdir -p $GOPATH/src/github.com/streamnative/
+cd $GOPATH/src/github.com/streamnative/
+git clone https://github.com/streamnative/pulsar-beat-output
+cd pulsar-beat-output
 go build -o filebeat main.go
 chown -R root:root filebeat.yml test_module/modules.d/system.yml test_module/module/system
 cp test_module/module/system/auth/test/test.log /var/log/messages.log
