@@ -1,5 +1,70 @@
 # Changelog
 
+#### Next version (unreleased)
+
+ - Please **don't** use Zstd, as it doesn't work right now.
+   See https://github.com/Shopify/sarama/issues/1252
+
+#### Version 1.23.1 (2019-07-22)
+
+Bug Fixes:
+- Fix fetch delete bug record
+  ([1425](https://github.com/Shopify/sarama/pull/1425)).
+- Handle SASL/OAUTHBEARER token rejection
+  ([1428](https://github.com/Shopify/sarama/pull/1428)).
+
+#### Version 1.23.0 (2019-07-02)
+
+New Features:
+- Add support for Kafka 2.3.0
+  ([1418](https://github.com/Shopify/sarama/pull/1418)).
+- Add support for ListConsumerGroupOffsets v2
+  ([1374](https://github.com/Shopify/sarama/pull/1374)).
+- Add support for DeleteConsumerGroup
+  ([1417](https://github.com/Shopify/sarama/pull/1417)).
+- Add support for SASLVersion configuration
+  ([1410](https://github.com/Shopify/sarama/pull/1410)).
+- Add kerberos support
+  ([1366](https://github.com/Shopify/sarama/pull/1366)).
+
+Improvements:
+- Improve sasl_scram_client example
+  ([1406](https://github.com/Shopify/sarama/pull/1406)).
+- Fix shutdown and race-condition in consumer-group example
+  ([1404](https://github.com/Shopify/sarama/pull/1404)).
+- Add support for error codes 77—81
+  ([1397](https://github.com/Shopify/sarama/pull/1397)).
+- Pool internal objects allocated per message
+  ([1385](https://github.com/Shopify/sarama/pull/1385)).
+- Reduce packet decoder allocations
+  ([1373](https://github.com/Shopify/sarama/pull/1373)).
+- Support timeout when fetching metadata
+  ([1359](https://github.com/Shopify/sarama/pull/1359)).
+
+Bug Fixes:
+- Fix fetch size integer overflow
+  ([1376](https://github.com/Shopify/sarama/pull/1376)).
+- Handle and log throttled FetchResponses
+  ([1383](https://github.com/Shopify/sarama/pull/1383)).
+- Refactor misspelled word Resouce to Resource
+  ([1368](https://github.com/Shopify/sarama/pull/1368)).
+
+#### Version 1.22.1 (2019-04-29)
+
+Improvements:
+- Use zstd 1.3.8
+  ([1350](https://github.com/Shopify/sarama/pull/1350)).
+- Add support for SaslHandshakeRequest v1
+  ([1354](https://github.com/Shopify/sarama/pull/1354)).
+
+Bug Fixes:
+- Fix V5 MetadataRequest nullable topics array
+  ([1353](https://github.com/Shopify/sarama/pull/1353)).
+- Use a different SCRAM client for each broker connection
+  ([1349](https://github.com/Shopify/sarama/pull/1349)).
+- Fix AllowAutoTopicCreation for MetadataRequest greater than v3
+  ([1344](https://github.com/Shopify/sarama/pull/1344)).
+
 #### Version 1.22.0 (2019-04-09)
 
 New Features:

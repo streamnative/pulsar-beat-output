@@ -4,7 +4,7 @@
 .DEFAULT_GOAL    := generate
 FIND             := find . -type f -not -path './build/*' -not -path './.git/*'
 FORCE_GO_MODULES := GO111MODULE=on
-OPEN_DOCS        ?= "-open"
+OPEN_DOCS        ?= "--open"
 PYTHON           := build/ve/bin/python
 VERSION          := $(shell cat version)
 
@@ -45,7 +45,7 @@ docs:
 	if [ ! -d $(PWD)/build/docs ]; then \
 		git clone --depth=1 https://github.com/elastic/docs.git ./build/docs ; \
 	fi
-	./build/docs/build_docs.pl --doc ./docs/index.asciidoc --chunk=1 $(OPEN_DOCS) -out ./build/html_docs
+	./build/docs/build_docs --asciidoctor --doc ./docs/index.asciidoc --chunk=1 $(OPEN_DOCS) --out ./build/html_docs
 
 # Format code and files in the repo.
 .PHONY: fmt
@@ -56,12 +56,12 @@ fmt: ve
 
 # Alias to generate everything.
 .PHONY: generate
-generate: template legacy_use_cases codegen generator
+generate: template legacy_use_cases codegen generator schema.json
 
 # Run the new generator
 .PHONY: generator
 generator:
-	$(PYTHON) scripts/generator.py
+	$(PYTHON) scripts/generator.py --include "${INCLUDE}"
 
 # Generate Go code from the schema.
 .PHONY: gocodegen
@@ -75,7 +75,7 @@ gocodegen:
 
 # Generate the Use Cases
 .PHONY: legacy_use_cases
-legacy_use_cases:
+legacy_use_cases: ve
 	$(PYTHON) scripts/use-cases.py --stdout=true >> /dev/null
 
 # Check Makefile format.
@@ -93,6 +93,11 @@ misspell:
 
 .PHONY: reload_docs
 reload_docs: generator docs
+
+# Generate schema.json.
+.PHONY: schema.json
+schema.json: ve
+	$(PYTHON) scripts/schemas.py
 
 # Download and setup tooling dependencies.
 .PHONY: setup

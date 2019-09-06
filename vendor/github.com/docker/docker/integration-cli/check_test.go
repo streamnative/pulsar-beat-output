@@ -142,6 +142,39 @@ func (s *DockerRegistrySuite) TearDownTest(c *check.C) {
 }
 
 func init() {
+	check.Suite(&DockerSchema1RegistrySuite{
+		ds: &DockerSuite{},
+	})
+}
+
+type DockerSchema1RegistrySuite struct {
+	ds  *DockerSuite
+	reg *registry.V2
+	d   *daemon.Daemon
+}
+
+func (s *DockerSchema1RegistrySuite) OnTimeout(c *check.C) {
+	s.d.DumpStackAndQuit()
+}
+
+func (s *DockerSchema1RegistrySuite) SetUpTest(c *check.C) {
+	testRequires(c, DaemonIsLinux, RegistryHosting, NotArm64, testEnv.IsLocalDaemon)
+	s.reg = registry.NewV2(c, registry.Schema1)
+	s.reg.WaitReady(c)
+	s.d = daemon.New(c, dockerBinary, dockerdBinary, testdaemon.WithEnvironment(testEnv.Execution))
+}
+
+func (s *DockerSchema1RegistrySuite) TearDownTest(c *check.C) {
+	if s.reg != nil {
+		s.reg.Close()
+	}
+	if s.d != nil {
+		s.d.Stop(c)
+	}
+	s.ds.TearDownTest(c)
+}
+
+func init() {
 	check.Suite(&DockerRegistryAuthHtpasswdSuite{
 		ds: &DockerSuite{},
 	})
@@ -271,8 +304,8 @@ func init() {
 type DockerSwarmSuite struct {
 	server      *httptest.Server
 	ds          *DockerSuite
+	daemonsLock sync.Mutex // protect access to daemons and portIndex
 	daemons     []*daemon.Daemon
-	daemonsLock sync.Mutex // protect access to daemons
 	portIndex   int
 }
 
@@ -303,8 +336,8 @@ func (s *DockerSwarmSuite) AddDaemon(c *check.C, joinSwarm, manager bool) *daemo
 		d.StartNode(c)
 	}
 
-	s.portIndex++
 	s.daemonsLock.Lock()
+	s.portIndex++
 	s.daemons = append(s.daemons, d)
 	s.daemonsLock.Unlock()
 
@@ -321,9 +354,8 @@ func (s *DockerSwarmSuite) TearDownTest(c *check.C) {
 		}
 	}
 	s.daemons = nil
-	s.daemonsLock.Unlock()
-
 	s.portIndex = 0
+	s.daemonsLock.Unlock()
 	s.ds.TearDownTest(c)
 }
 

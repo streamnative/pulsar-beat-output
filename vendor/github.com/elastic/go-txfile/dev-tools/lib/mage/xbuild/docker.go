@@ -19,6 +19,7 @@ package xbuild
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/magefile/mage/sh"
 )
@@ -56,6 +57,8 @@ func (p DockerImage) Run(env map[string]string, cmdAndArgs ...string) error {
 			spec = append(spec, v)
 		}
 	}
+
+	fmt.Printf("Run docker command: docker %v\n", strings.Join(spec, " "))
 
 	return sh.RunV("docker", spec...)
 }

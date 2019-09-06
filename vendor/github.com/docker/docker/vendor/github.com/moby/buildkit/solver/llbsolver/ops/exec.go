@@ -60,6 +60,9 @@ type execOp struct {
 }
 
 func NewExecOp(v solver.Vertex, op *pb.Op_Exec, platform *pb.Platform, cm cache.Manager, sm *session.Manager, md *metadata.Store, exec executor.Executor, w worker.Worker) (solver.Op, error) {
+	if err := llbsolver.ValidateOp(&pb.Op{Op: op}); err != nil {
+		return nil, err
+	}
 	return &execOp{
 		op:          op.Exec,
 		cm:          cm,
@@ -218,11 +221,13 @@ func (e *execOp) getMountDeps() ([]dep, error) {
 }
 
 func (e *execOp) getRefCacheDir(ctx context.Context, ref cache.ImmutableRef, id string, m *pb.Mount, sharing pb.CacheSharingOpt) (mref cache.MutableRef, err error) {
-
 	key := "cache-dir:" + id
 	if ref != nil {
 		key += ":" + ref.ID()
 	}
+	mu := CacheMountsLocker()
+	mu.Lock()
+	defer mu.Unlock()
 
 	if ref, ok := e.cacheMounts[key]; ok {
 		return ref.clone(), nil
@@ -251,7 +256,7 @@ func (e *execOp) getRefCacheDir(ctx context.Context, ref cache.ImmutableRef, id 
 }
 
 func (e *execOp) getRefCacheDirNoCache(ctx context.Context, key string, ref cache.ImmutableRef, id string, m *pb.Mount, block bool) (cache.MutableRef, error) {
-	makeMutable := func(cache.ImmutableRef) (cache.MutableRef, error) {
+	makeMutable := func(ref cache.ImmutableRef) (cache.MutableRef, error) {
 		desc := fmt.Sprintf("cached mount %s from exec %s", m.Dest, strings.Join(e.op.Meta.Args, " "))
 		return e.cm.New(ctx, ref, cache.WithRecordType(client.UsageRecordTypeCacheMount), cache.WithDescription(desc), cache.CachePolicyRetain)
 	}
@@ -324,7 +329,7 @@ func (e *execOp) getSSHMountable(ctx context.Context, m *pb.Mount) (cache.Mounta
 		if m.SSHOpt.Optional {
 			return nil, nil
 		}
-		if st, ok := status.FromError(err); ok && st.Code() == codes.Unimplemented {
+		if st, ok := status.FromError(errors.Cause(err)); ok && st.Code() == codes.Unimplemented {
 			return nil, errors.Errorf("no SSH key %q forwarded from the client", m.SSHOpt.ID)
 		}
 		return nil, err
@@ -344,12 +349,11 @@ func (sm *sshMount) Mount(ctx context.Context, readonly bool) (snapshot.Mountabl
 }
 
 type sshMountInstance struct {
-	sm      *sshMount
-	cleanup func() error
-	idmap   *idtools.IdentityMapping
+	sm    *sshMount
+	idmap *idtools.IdentityMapping
 }
 
-func (sm *sshMountInstance) Mount() ([]mount.Mount, error) {
+func (sm *sshMountInstance) Mount() ([]mount.Mount, func() error, error) {
 	ctx, cancel := context.WithCancel(context.TODO())
 
 	uid := int(sm.sm.mount.SSHOpt.Uid)
@@ -361,7 +365,7 @@ func (sm *sshMountInstance) Mount() ([]mount.Mount, error) {
 			GID: gid,
 		})
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		uid = identity.UID
 		gid = identity.GID
@@ -375,9 +379,9 @@ func (sm *sshMountInstance) Mount() ([]mount.Mount, error) {
 	})
 	if err != nil {
 		cancel()
-		return nil, err
+		return nil, nil, err
 	}
-	sm.cleanup = func() error {
+	release := func() error {
 		var err error
 		if cleanup != nil {
 			err = cleanup()
@@ -390,16 +394,7 @@ func (sm *sshMountInstance) Mount() ([]mount.Mount, error) {
 		Type:    "bind",
 		Source:  sock,
 		Options: []string{"rbind"},
-	}}, nil
-}
-
-func (sm *sshMountInstance) Release() error {
-	if sm.cleanup != nil {
-		if err := sm.cleanup(); err != nil {
-			return err
-		}
-	}
-	return nil
+	}}, release, nil
 }
 
 func (sm *sshMountInstance) IdentityMapping() *idtools.IdentityMapping {
@@ -457,14 +452,18 @@ type secretMountInstance struct {
 	idmap *idtools.IdentityMapping
 }
 
-func (sm *secretMountInstance) Mount() ([]mount.Mount, error) {
+func (sm *secretMountInstance) Mount() ([]mount.Mount, func() error, error) {
 	dir, err := ioutil.TempDir("", "buildkit-secrets")
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create temp dir")
+		return nil, nil, errors.Wrap(err, "failed to create temp dir")
+	}
+	cleanupDir := func() error {
+		return os.RemoveAll(dir)
 	}
 
 	if err := os.Chmod(dir, 0711); err != nil {
-		return nil, err
+		cleanupDir()
+		return nil, nil, err
 	}
 
 	tmpMount := mount.Mount{
@@ -478,15 +477,23 @@ func (sm *secretMountInstance) Mount() ([]mount.Mount, error) {
 	}
 
 	if err := mount.All([]mount.Mount{tmpMount}, dir); err != nil {
-		return nil, errors.Wrap(err, "unable to setup secret mount")
+		cleanupDir()
+		return nil, nil, errors.Wrap(err, "unable to setup secret mount")
 	}
 	sm.root = dir
+
+	cleanup := func() error {
+		if err := mount.Unmount(dir, 0); err != nil {
+			return err
+		}
+		return cleanupDir()
+	}
 
 	randID := identity.NewID()
 	fp := filepath.Join(dir, randID)
 	if err := ioutil.WriteFile(fp, sm.sm.data, 0600); err != nil {
-		sm.Release()
-		return nil, err
+		cleanup()
+		return nil, nil, err
 	}
 
 	uid := int(sm.sm.mount.SecretOpt.Uid)
@@ -498,35 +505,28 @@ func (sm *secretMountInstance) Mount() ([]mount.Mount, error) {
 			GID: gid,
 		})
 		if err != nil {
-			return nil, err
+			cleanup()
+			return nil, nil, err
 		}
 		uid = identity.UID
 		gid = identity.GID
 	}
 
 	if err := os.Chown(fp, uid, gid); err != nil {
-		return nil, err
+		cleanup()
+		return nil, nil, err
 	}
 
 	if err := os.Chmod(fp, os.FileMode(sm.sm.mount.SecretOpt.Mode&0777)); err != nil {
-		return nil, err
+		cleanup()
+		return nil, nil, err
 	}
 
 	return []mount.Mount{{
 		Type:    "bind",
 		Source:  fp,
 		Options: []string{"ro", "rbind"},
-	}}, nil
-}
-
-func (sm *secretMountInstance) Release() error {
-	if sm.root != "" {
-		if err := mount.Unmount(sm.root, 0); err != nil {
-			return err
-		}
-		return os.RemoveAll(sm.root)
-	}
-	return nil
+	}}, cleanup, nil
 }
 
 func (sm *secretMountInstance) IdentityMapping() *idtools.IdentityMapping {
@@ -580,7 +580,7 @@ func (e *execOp) Exec(ctx context.Context, inputs []solver.Result) ([]solver.Res
 			mountable = ref
 		}
 
-		makeMutable := func(cache.ImmutableRef) (cache.MutableRef, error) {
+		makeMutable := func(ref cache.ImmutableRef) (cache.MutableRef, error) {
 			desc := fmt.Sprintf("mount %s from exec %s", m.Dest, strings.Join(e.op.Meta.Args, " "))
 			return e.cm.New(ctx, ref, cache.WithDescription(desc))
 		}
@@ -601,7 +601,7 @@ func (e *execOp) Exec(ctx context.Context, inputs []solver.Result) ([]solver.Res
 					outputs = append(outputs, active)
 					mountable = active
 				}
-			} else if ref == nil {
+			} else if (!m.Readonly || ref == nil) && m.Dest != pb.RootMount {
 				// this case is empty readonly scratch without output that is not really useful for anything but don't error
 				active, err := makeMutable(ref)
 				if err != nil {
@@ -762,7 +762,7 @@ type tmpfsMount struct {
 	idmap    *idtools.IdentityMapping
 }
 
-func (m *tmpfsMount) Mount() ([]mount.Mount, error) {
+func (m *tmpfsMount) Mount() ([]mount.Mount, func() error, error) {
 	opt := []string{"nosuid"}
 	if m.readonly {
 		opt = append(opt, "ro")
@@ -771,10 +771,7 @@ func (m *tmpfsMount) Mount() ([]mount.Mount, error) {
 		Type:    "tmpfs",
 		Source:  "tmpfs",
 		Options: opt,
-	}}, nil
-}
-func (m *tmpfsMount) Release() error {
-	return nil
+	}}, func() error { return nil }, nil
 }
 
 func (m *tmpfsMount) IdentityMapping() *idtools.IdentityMapping {
@@ -789,10 +786,17 @@ type cacheRefs struct {
 	shares map[string]*cacheRefShare
 }
 
-func (r *cacheRefs) get(key string, fn func() (cache.MutableRef, error)) (cache.MutableRef, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+// ClearActiveCacheMounts clears shared cache mounts currently in use.
+// Caller needs to hold CacheMountsLocker before calling
+func ClearActiveCacheMounts() {
+	sharedCacheRefs.shares = nil
+}
 
+func CacheMountsLocker() sync.Locker {
+	return &sharedCacheRefs.mu
+}
+
+func (r *cacheRefs) get(key string, fn func() (cache.MutableRef, error)) (cache.MutableRef, error) {
 	if r.shares == nil {
 		r.shares = map[string]*cacheRefShare{}
 	}

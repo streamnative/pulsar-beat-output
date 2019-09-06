@@ -237,7 +237,10 @@ func (daemon *Daemon) buildSandboxOptions(container *container.Container) ([]lib
 
 func (daemon *Daemon) updateNetworkSettings(container *container.Container, n libnetwork.Network, endpointConfig *networktypes.EndpointSettings) error {
 	if container.NetworkSettings == nil {
-		container.NetworkSettings = &network.Settings{Networks: make(map[string]*network.EndpointSettings)}
+		container.NetworkSettings = &network.Settings{}
+	}
+	if container.NetworkSettings.Networks == nil {
+		container.NetworkSettings.Networks = make(map[string]*network.EndpointSettings)
 	}
 
 	if !container.HostConfig.NetworkMode.IsHost() && containertypes.NetworkMode(n.Type()).IsHost() {
@@ -353,6 +356,15 @@ func (daemon *Daemon) findAndAttachNetwork(container *container.Container, idOrN
 	if n != nil {
 		if container.Managed || !n.Info().Dynamic() {
 			return n, nil, nil
+		}
+		// Throw an error if the container is already attached to the network
+		if container.NetworkSettings.Networks != nil {
+			networkName := n.Name()
+			containerName := strings.TrimPrefix(container.Name, "/")
+			if network, ok := container.NetworkSettings.Networks[networkName]; ok && network.EndpointID != "" {
+				err := fmt.Errorf("%s is already attached to network %s", containerName, networkName)
+				return n, nil, errdefs.Conflict(err)
+			}
 		}
 	}
 
@@ -673,6 +685,18 @@ func (daemon *Daemon) updateNetworkConfig(container *container.Container, n libn
 		}
 		if addShortID {
 			endpointConfig.Aliases = append(endpointConfig.Aliases, shortID)
+		}
+		if container.Name != container.Config.Hostname {
+			addHostname := true
+			for _, alias := range endpointConfig.Aliases {
+				if alias == container.Config.Hostname {
+					addHostname = false
+					break
+				}
+			}
+			if addHostname {
+				endpointConfig.Aliases = append(endpointConfig.Aliases, container.Config.Hostname)
+			}
 		}
 	}
 

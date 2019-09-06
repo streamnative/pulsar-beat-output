@@ -129,13 +129,6 @@ Now you can see the information collected from filebeat.
 |certificate_path| path of tls cert file |""|
 |private_key_path| path of tls key file |""|
 |use_tls| Whether to turn on TLS, if to start, use protocol pulsar+ssl |false|
-|operation_timeout_seconds| Set the operation timeout (default: 30 seconds) |30s|
-|io_threads| Set the number of threads to be used for handling connections to brokers |1|
-|message_listener_threads| Set the number of threads to be used for message listeners |1|
-|tls_trust_certs_file_path| Set the path to the trusted TLS certificate file |false|
-|tls_allow_insecure_connection| Configure whether the Pulsar client accept untrusted TLS certificate from broker |false|
-|stats_interval_in_seconds| the interval between each stat info |60|
-|concurrent_lookup_requests| Number of concurrent lookup-requests allowed to send on each broker-connection to prevent overload on broker. |60|
 
 #### Producer
 |Name|Description|Default|
@@ -144,7 +137,6 @@ Now you can see the information collected from filebeat.
 |name| Specify a name for the producer |""|
 |send_timeout| Set the send timeout |30s|
 |block_if_queue_full| Set whether the send and sendAsync operations should block when the outgoing message queue is full. |false|
-|batching| Control whether automatic batching of messages is enabled for the producer |true|
 |batching_max_messages| maximum number of messages in a batch |1000|
 |batching_max_publish_delay| the batch delay |1ms|
 |message_routing_mode| the message routing mode, SinglePartition,RoundRobinPartition, CustomPartition(0,1,2) |1|

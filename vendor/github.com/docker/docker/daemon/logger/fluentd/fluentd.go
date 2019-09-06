@@ -133,7 +133,7 @@ func New(info logger.Info) (logger.Logger, error) {
 		BufferLimit:        bufferLimit,
 		RetryWait:          retryWait,
 		MaxRetry:           maxRetries,
-		AsyncConnect:       asyncConnect,
+		Async:              asyncConnect,
 		SubSecondPrecision: subSecondPrecision,
 	}
 
@@ -192,6 +192,7 @@ func ValidateLogOpt(cfg map[string]string) error {
 		case "env":
 		case "env-regex":
 		case "labels":
+		case "labels-regex":
 		case "tag":
 		case addressKey:
 		case bufferLimitKey:
