@@ -1,13 +1,11 @@
-package: github.com/streamnative/pulsar-beat-output
+package: .
 import:
-- package: github.com/apache/pulsar
-  version: v2.3.1
+- package: github.com/apache/pulsar-client-go
   subpackages:
-  - pulsar-client-go/pulsar
+  - pulsar
 - package: github.com/elastic/beats
-  version: v7.0.0
+  version: v7.3.1
   subpackages:
-  - filebeat/cmd
   - libbeat/asset
   - libbeat/beat
   - libbeat/common
@@ -15,8 +13,17 @@ import:
   - libbeat/outputs
   - libbeat/outputs/codec
   - libbeat/publisher
+  - x-pack/auditbeat/cmd
+  - x-pack/filebeat/cmd
+  - x-pack/functionbeat/cmd
+  - x-pack/journalbeat/cmd
+  - x-pack/metricbeat/cmd
+  - x-pack/packetbeat/cmd
+  - x-pack/winlogbeat/cmd
 testImport:
 - package: github.com/stretchr/testify
   version: v1.3.0
   subpackages:
   - assert
+ignore:
+  - crypto/ed25519

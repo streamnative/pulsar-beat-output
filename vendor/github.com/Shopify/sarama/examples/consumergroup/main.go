@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 
 	"github.com/Shopify/sarama"
@@ -14,12 +15,13 @@ import (
 
 // Sarma configuration options
 var (
-	brokers = ""
-	version = ""
-	group   = ""
-	topics  = ""
-	oldest  = true
-	verbose = false
+	brokers  = ""
+	version  = ""
+	group    = ""
+	topics   = ""
+	assignor = ""
+	oldest   = true
+	verbose  = false
 )
 
 func init() {
@@ -27,6 +29,7 @@ func init() {
 	flag.StringVar(&group, "group", "", "Kafka consumer group definition")
 	flag.StringVar(&version, "version", "2.1.1", "Kafka cluster version")
 	flag.StringVar(&topics, "topics", "", "Kafka topics to be consumed, as a comma seperated list")
+	flag.StringVar(&assignor, "assignor", "range", "Consumer group partition assignment strategy (range, roundrobin, sticky)")
 	flag.BoolVar(&oldest, "oldest", true, "Kafka consumer consume initial ofset from oldest")
 	flag.BoolVar(&verbose, "verbose", false, "Sarama logging")
 	flag.Parse()
@@ -53,7 +56,7 @@ func main() {
 
 	version, err := sarama.ParseKafkaVersion(version)
 	if err != nil {
-		panic(err)
+		log.Panicf("Error parsing Kafka version: %v", err)
 	}
 
 	/**
@@ -63,6 +66,17 @@ func main() {
 	config := sarama.NewConfig()
 	config.Version = version
 
+	switch assignor {
+	case "sticky":
+		config.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategySticky
+	case "roundrobin":
+		config.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategyRoundRobin
+	case "range":
+		config.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategyRange
+	default:
+		log.Panicf("Unrecognized consumer group partition assignor: %s", assignor)
+	}
+
 	if oldest {
 		config.Consumer.Offsets.Initial = sarama.OffsetOldest
 	}
@@ -70,21 +84,29 @@ func main() {
 	/**
 	 * Setup a new Sarama consumer group
 	 */
-	consumer := Consumer{}
-
-	ctx := context.Background()
-	client, err := sarama.NewConsumerGroup(strings.Split(brokers, ","), group, config)
-	if err != nil {
-		panic(err)
+	consumer := Consumer{
+		ready: make(chan bool),
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+	client, err := sarama.NewConsumerGroup(strings.Split(brokers, ","), group, config)
+	if err != nil {
+		log.Panicf("Error creating consumer group client: %v", err)
+	}
+
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		for {
-			consumer.ready = make(chan bool, 0)
-			err := client.Consume(ctx, strings.Split(topics, ","), &consumer)
-			if err != nil {
-				panic(err)
+			if err := client.Consume(ctx, strings.Split(topics, ","), &consumer); err != nil {
+				log.Panicf("Error from consumer: %v", err)
 			}
+			// check if context was cancelled, signaling that the consumer should stop
+			if ctx.Err() != nil {
+				return
+			}
+			consumer.ready = make(chan bool)
 		}
 	}()
 
@@ -93,12 +115,16 @@ func main() {
 
 	sigterm := make(chan os.Signal, 1)
 	signal.Notify(sigterm, syscall.SIGINT, syscall.SIGTERM)
-
-	<-sigterm // Await a sigterm signal before safely closing the consumer
-
-	err = client.Close()
-	if err != nil {
-		panic(err)
+	select {
+	case <-ctx.Done():
+		log.Println("terminating: context cancelled")
+	case <-sigterm:
+		log.Println("terminating: via signal")
+	}
+	cancel()
+	wg.Wait()
+	if err = client.Close(); err != nil {
+		log.Panicf("Error closing client: %v", err)
 	}
 }
 

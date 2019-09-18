@@ -9,8 +9,6 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -64,6 +62,8 @@ var decTestfiles = []struct {
 	{name: "symlen1", fn: func() ([]byte, error) { return ioutil.ReadFile("../testdata/dec-symlen1.bin") }, err: "symbolLen (257) too big"},
 	{name: "crash4", fn: func() ([]byte, error) { return ioutil.ReadFile("../testdata/crash4.bin") }, err: "symbolLen (1) too small"},
 	{name: "crash5", fn: func() ([]byte, error) { return ioutil.ReadFile("../testdata/crash5.bin") }, err: "symbolLen (1) too small"},
+	{name: "crash6", fn: func() ([]byte, error) { return ioutil.ReadFile("../testdata/dec-crash6.bin") }, err: "newState (32768) outside table size (32768)"},
+	{name: "something", fn: func() ([]byte, error) { return ioutil.ReadFile("../testdata/fse-artifact3.bin") }, err: "output size (1048576) > DecompressLimit (1048576)"},
 }
 
 func TestCompress(t *testing.T) {
@@ -108,6 +108,7 @@ func TestDecompress(t *testing.T) {
 	for _, test := range decTestfiles {
 		t.Run(test.name, func(t *testing.T) {
 			var s Scratch
+			s.DecompressLimit = 1 << 20
 			buf0, err := test.fn()
 			if err != nil {
 				t.Fatal(err)
@@ -151,28 +152,6 @@ func ExampleDecompress() {
 	}
 	fmt.Printf("Input matches: %t\n", bytes.Equal(d, data))
 	// OUTPUT: Input matches: true
-}
-
-func TestGenCorpus(t *testing.T) {
-	t.Skip("only for generating decompress corpus")
-	filepath.Walk("fuzz/compress/corpus", func(path string, info os.FileInfo, err error) error {
-		t.Run(path, func(t *testing.T) {
-			var s Scratch
-			buf0, err := ioutil.ReadFile(path)
-			if err != nil {
-				t.Fatal(err)
-			}
-			b, err := Compress(buf0, &s)
-			if err != nil {
-				t.Skip("skipping")
-				return
-			}
-			t.Logf("%s: %d -> %d bytes (%.2f:1)", path, len(buf0), len(b), float64(len(buf0))/float64(len(b)))
-			dstP := strings.Replace(path, "compress", "decompress", 1)
-			ioutil.WriteFile(dstP, b, os.ModePerm)
-		})
-		return nil
-	})
 }
 
 func BenchmarkCompress(b *testing.B) {

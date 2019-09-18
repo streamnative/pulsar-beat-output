@@ -13,6 +13,25 @@ keywords: "API, Docker, rcli, REST, documentation"
      will be rejected.
 -->
 
+## v1.41 API changes
+
+[Docker Engine API v1.41](https://docs.docker.com/engine/api/v1.41/) documentation
+
+* `GET /services` now returns `Capabilities` as part of the `ContainerSpec`.
+* `GET /services/{id}` now returns `Capabilities` as part of the `ContainerSpec`.
+* `POST /services/create` now accepts `Capabilities` as part of the `ContainerSpec`.
+* `POST /services/{id}/update` now accepts `Capabilities` as part of the `ContainerSpec`.
+* `GET /tasks` now  returns `Capabilities` as part of the `ContainerSpec`.
+* `GET /tasks/{id}` now  returns `Capabilities` as part of the `ContainerSpec`.
+* `POST /containers/create` on Linux now accepts the `HostConfig.CgroupnsMode` property.
+  Set the property to `host` to create the container in the daemon's cgroup namespace, or
+  `private` to create the container in its own private cgroup namespace.  The per-daemon
+  default is `host`, and can be changed by using the`CgroupNamespaceMode` daemon configuration
+  parameter.
+* `GET /info` now  returns an `OSVersion` field, containing the operating system's
+  version. This change is not versioned, and affects all API versions if the daemon
+  has this patch.
+
 ## v1.40 API changes
 
 [Docker Engine API v1.40](https://docs.docker.com/engine/api/v1.40/) documentation
@@ -49,6 +68,11 @@ keywords: "API, Docker, rcli, REST, documentation"
 * `GET /info` now returns information about `DataPathPort` that is currently used in swarm
 * `GET /info` now returns `PidsLimit` boolean to indicate if the host kernel has
   PID limit support enabled.
+* `GET /info` now includes `name=rootless` in `SecurityOptions` when the daemon is running in
+  rootless mode.  This change is not versioned, and affects all API versions if the daemon has
+  this patch.
+* `GET /info` now returns `none` as `CgroupDriver` when the daemon is running in rootless mode.
+  This change is not versioned, and affects all API versions if the daemon has this patch.
 * `POST /containers/create` now accepts `DeviceRequests` as part of `HostConfig`.
   Can be used to set Nvidia GPUs.
 * `GET /swarm` endpoint now returns DataPathPort info
@@ -215,6 +239,7 @@ keywords: "API, Docker, rcli, REST, documentation"
 * `GET /events` now supports service, node and secret events which are emitted when users create, update and remove service, node and secret
 * `GET /events` now supports network remove event which is emitted when users remove a swarm scoped network
 * `GET /events` now supports a filter type `scope` in which supported value could be swarm and local
+* `PUT /containers/(name)/archive` now accepts a `copyUIDGID` parameter to allow copy UID/GID maps to dest file or dir.
 
 ## v1.29 API changes
 

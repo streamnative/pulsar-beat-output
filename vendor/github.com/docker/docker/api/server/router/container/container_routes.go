@@ -490,6 +490,12 @@ func (s *containerRouter) postContainersCreate(ctx context.Context, w http.Respo
 			hostConfig.IpcMode = container.IpcMode("shareable")
 		}
 	}
+	if hostConfig != nil && versions.LessThan(version, "1.41") {
+		// Older clients expect the default to be "host"
+		if hostConfig.CgroupnsMode.IsEmpty() {
+			hostConfig.CgroupnsMode = container.CgroupnsMode("host")
+		}
+	}
 
 	if hostConfig != nil && hostConfig.PidsLimit != nil && *hostConfig.PidsLimit <= 0 {
 		// Don't set a limit if either no limit was specified, or "unlimited" was

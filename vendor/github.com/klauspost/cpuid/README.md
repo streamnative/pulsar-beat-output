@@ -64,6 +64,7 @@ Package home: https://github.com/klauspost/cpuid
 *  **RDTSCP** (RDTSCP Instruction)
 *  **CX16** (CMPXCHG16B Instruction)
 *  **SGX** (Software Guard Extensions, with activation details)
+*  **VMX** (Virtual Machine Extensions)
 
 ## Performance
 *  **RDTSCP()** Returns current cycle count. Can be used for benchmarking.
@@ -84,6 +85,7 @@ Package home: https://github.com/klauspost/cpuid
 * **VMware**
 * **XenHVM**
 * **Bhyve**
+* **Hygon**
 
 # installing
 

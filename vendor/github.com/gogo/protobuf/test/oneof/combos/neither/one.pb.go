@@ -15,6 +15,7 @@ import (
 	github_com_gogo_protobuf_test_custom "github.com/gogo/protobuf/test/custom"
 	io_ioutil "io/ioutil"
 	math "math"
+	math_bits "math/bits"
 	reflect "reflect"
 	strings "strings"
 )
@@ -3376,7 +3377,7 @@ func valueToGoStringOne(v interface{}, typ string) string {
 }
 func NewPopulatedSubby(r randyOne, easy bool) *Subby {
 	this := &Subby{}
-	if r.Intn(10) != 0 {
+	if r.Intn(5) != 0 {
 		v1 := string(randStringOne(r))
 		this.Sub = &v1
 	}
@@ -4038,14 +4039,7 @@ func (m *CustomOneof_MyCustomName) Size() (n int) {
 }
 
 func sovOne(x uint64) (n int) {
-	for {
-		n++
-		x >>= 7
-		if x == 0 {
-			break
-		}
-	}
-	return n
+	return (math_bits.Len64(x|1) + 6) / 7
 }
 func sozOne(x uint64) (n int) {
 	return sovOne(uint64((x << 1) ^ uint64((int64(x) >> 63))))

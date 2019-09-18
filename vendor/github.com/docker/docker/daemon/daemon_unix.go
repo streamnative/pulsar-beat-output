@@ -43,7 +43,7 @@ import (
 	lntypes "github.com/docker/libnetwork/types"
 	"github.com/opencontainers/runc/libcontainer/cgroups"
 	rsystem "github.com/opencontainers/runc/libcontainer/system"
-	"github.com/opencontainers/runtime-spec/specs-go"
+	specs "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/opencontainers/selinux/go-selinux/label"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -73,6 +73,7 @@ const (
 	// constant for cgroup drivers
 	cgroupFsDriver      = "cgroupfs"
 	cgroupSystemdDriver = "systemd"
+	cgroupNoneDriver    = "none"
 
 	// DefaultRuntimeName is the default runtime to be used by
 	// containerd if none is specified
@@ -191,8 +192,9 @@ func getBlkioWeightDevices(config containertypes.Resources) ([]specs.LinuxWeight
 		}
 		weight := weightDevice.Weight
 		d := specs.LinuxWeightDevice{Weight: &weight}
-		d.Major = int64(stat.Rdev / 256)
-		d.Minor = int64(stat.Rdev % 256)
+		// The type is 32bit on mips.
+		d.Major = int64(unix.Major(uint64(stat.Rdev))) // nolint: unconvert
+		d.Minor = int64(unix.Minor(uint64(stat.Rdev))) // nolint: unconvert
 		blkioWeightDevices = append(blkioWeightDevices, d)
 	}
 
@@ -262,8 +264,9 @@ func getBlkioThrottleDevices(devs []*blkiodev.ThrottleDevice) ([]specs.LinuxThro
 			return nil, err
 		}
 		d := specs.LinuxThrottleDevice{Rate: d.Rate}
-		d.Major = int64(stat.Rdev / 256)
-		d.Minor = int64(stat.Rdev % 256)
+		// the type is 32bit on mips
+		d.Major = int64(unix.Major(uint64(stat.Rdev))) // nolint: unconvert
+		d.Minor = int64(unix.Minor(uint64(stat.Rdev))) // nolint: unconvert
 		throttleDevices = append(throttleDevices, d)
 	}
 
@@ -354,6 +357,19 @@ func (daemon *Daemon) adaptContainerSettings(hostConfig *containertypes.HostConf
 			m = daemon.configStore.IpcMode
 		}
 		hostConfig.IpcMode = containertypes.IpcMode(m)
+	}
+
+	// Set default cgroup namespace mode, if unset for container
+	if hostConfig.CgroupnsMode.IsEmpty() {
+		if hostConfig.Privileged {
+			hostConfig.CgroupnsMode = containertypes.CgroupnsMode("host")
+		} else {
+			m := config.DefaultCgroupNamespaceMode
+			if daemon.configStore != nil {
+				m = daemon.configStore.CgroupNamespaceMode
+			}
+			hostConfig.CgroupnsMode = containertypes.CgroupnsMode(m)
+		}
 	}
 
 	adaptSharedNamespaceContainer(daemon, hostConfig)
@@ -575,6 +591,9 @@ func verifyPlatformContainerResources(resources *containertypes.Resources, sysIn
 }
 
 func (daemon *Daemon) getCgroupDriver() string {
+	if daemon.Rootless() {
+		return cgroupNoneDriver
+	}
 	cgroupDriver := cgroupFsDriver
 
 	if UsingSystemd(daemon.configStore) {
@@ -600,6 +619,9 @@ func VerifyCgroupDriver(config *config.Config) error {
 	cd := getCD(config)
 	if cd == "" || cd == cgroupFsDriver || cd == cgroupSystemdDriver {
 		return nil
+	}
+	if cd == cgroupNoneDriver {
+		return fmt.Errorf("native.cgroupdriver option %s is internally used and cannot be specified manually", cd)
 	}
 	return fmt.Errorf("native.cgroupdriver option %s not supported", cd)
 }
@@ -675,6 +697,19 @@ func verifyPlatformContainerSettings(daemon *Daemon, hostConfig *containertypes.
 		}
 	}
 
+	if !hostConfig.CgroupnsMode.Valid() {
+		return warnings, fmt.Errorf("invalid cgroup namespace mode: %v", hostConfig.CgroupnsMode)
+	}
+	if hostConfig.CgroupnsMode.IsPrivate() {
+		if !sysInfo.CgroupNamespaces {
+			warnings = append(warnings, "Your kernel does not support cgroup namespaces.  Cgroup namespace setting discarded.")
+		}
+
+		if hostConfig.Privileged {
+			return warnings, fmt.Errorf("privileged mode is incompatible with private cgroup namespaces.  You must run the container in the host cgroup namespace when running privileged mode")
+		}
+	}
+
 	return warnings, nil
 }
 
@@ -728,6 +763,9 @@ func (daemon *Daemon) initRuntimes(runtimes map[string]types.Runtime) (err error
 
 // verifyDaemonSettings performs validation of daemon config struct
 func verifyDaemonSettings(conf *config.Config) error {
+	if conf.ContainerdNamespace == conf.ContainerdPluginNamespace {
+		return errors.New("containers namespace and plugins namespace cannot be the same")
+	}
 	// Check for mutually incompatible config options
 	if conf.BridgeConfig.Iface != "" && conf.BridgeConfig.IP != "" {
 		return fmt.Errorf("You specified -b & --bip, mutually exclusive options. Please specify only one")
@@ -920,12 +958,7 @@ func initBridgeDriver(controller libnetwork.NetworkController, config *config.Co
 		netOption[bridge.DefaultBindingIP] = config.BridgeConfig.DefaultIP.String()
 	}
 
-	var (
-		ipamV4Conf *libnetwork.IpamConf
-		ipamV6Conf *libnetwork.IpamConf
-	)
-
-	ipamV4Conf = &libnetwork.IpamConf{AuxAddresses: make(map[string]string)}
+	ipamV4Conf := &libnetwork.IpamConf{AuxAddresses: make(map[string]string)}
 
 	nwList, nw6List, err := netutils.ElectInterfaceAddresses(bridgeName)
 	if err != nil {
@@ -977,7 +1010,11 @@ func initBridgeDriver(controller libnetwork.NetworkController, config *config.Co
 		ipamV4Conf.AuxAddresses["DefaultGatewayIPv4"] = config.BridgeConfig.DefaultGatewayIPv4.String()
 	}
 
-	var deferIPv6Alloc bool
+	var (
+		deferIPv6Alloc bool
+		ipamV6Conf     *libnetwork.IpamConf
+	)
+
 	if config.BridgeConfig.FixedCIDRv6 != "" {
 		_, fCIDRv6, err := net.ParseCIDR(config.BridgeConfig.FixedCIDRv6)
 		if err != nil {
@@ -993,10 +1030,10 @@ func initBridgeDriver(controller libnetwork.NetworkController, config *config.Co
 		ones, _ := fCIDRv6.Mask.Size()
 		deferIPv6Alloc = ones <= 80
 
-		if ipamV6Conf == nil {
-			ipamV6Conf = &libnetwork.IpamConf{AuxAddresses: make(map[string]string)}
+		ipamV6Conf = &libnetwork.IpamConf{
+			AuxAddresses:  make(map[string]string),
+			PreferredPool: fCIDRv6.String(),
 		}
-		ipamV6Conf.PreferredPool = fCIDRv6.String()
 
 		// In case the --fixed-cidr-v6 is specified and the current docker0 bridge IPv6
 		// address belongs to the same network, we need to inform libnetwork about it, so
@@ -1256,6 +1293,10 @@ func setupDaemonRootPropagation(cfg *config.Config) error {
 	if rootParentMount == cfg.Root {
 		cleanupOldFile = true
 		return nil
+	}
+
+	if err := os.MkdirAll(filepath.Dir(cleanupFile), 0700); err != nil {
+		return errors.Wrap(err, "error creating dir to store mount cleanup file")
 	}
 
 	if err := ioutil.WriteFile(cleanupFile, nil, 0600); err != nil {

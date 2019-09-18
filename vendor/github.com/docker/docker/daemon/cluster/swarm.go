@@ -19,6 +19,7 @@ import (
 	swarmnode "github.com/docker/swarmkit/node"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
 )
 
 // Init initializes new cluster from user provided request.
@@ -194,8 +195,11 @@ func (c *Cluster) Join(req types.JoinRequest) error {
 	c.nr = nr
 	c.mu.Unlock()
 
+	timeout := time.NewTimer(swarmConnectTimeout)
+	defer timeout.Stop()
+
 	select {
-	case <-time.After(swarmConnectTimeout):
+	case <-timeout.C:
 		return errSwarmJoinTimeoutReached
 	case err := <-nr.Ready():
 		if err != nil {
@@ -449,7 +453,10 @@ func (c *Cluster) Info() types.Info {
 
 		info.Cluster = &swarm.ClusterInfo
 
-		if r, err := state.controlClient.ListNodes(ctx, &swarmapi.ListNodesRequest{}); err != nil {
+		if r, err := state.controlClient.ListNodes(
+			ctx, &swarmapi.ListNodesRequest{},
+			grpc.MaxCallRecvMsgSize(defaultRecvSizeForListResponse),
+		); err != nil {
 			info.Error = err.Error()
 		} else {
 			info.Nodes = len(r.Nodes)
@@ -466,7 +473,7 @@ func (c *Cluster) Info() types.Info {
 		default:
 			if info.Managers == 2 {
 				const warn string = `WARNING: Running Swarm in a two-manager configuration. This configuration provides
-         no fault tolerance, and poses a high risk to loose control over the cluster.
+         no fault tolerance, and poses a high risk to lose control over the cluster.
          Refer to https://docs.docker.com/engine/swarm/admin_guide/ to configure the
          Swarm for fault-tolerance.`
 

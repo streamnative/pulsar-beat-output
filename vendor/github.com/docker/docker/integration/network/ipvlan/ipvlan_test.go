@@ -1,10 +1,13 @@
 // +build !windows
 
-package ipvlan
+package ipvlan // import "github.com/docker/docker/integration/network/ipvlan"
 
 import (
 	"context"
+	"os"
+	"os/exec"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -19,11 +22,10 @@ import (
 
 func TestDockerNetworkIpvlanPersistance(t *testing.T) {
 	// verify the driver automatically provisions the 802.1q link (di-dummy0.70)
-	skip.If(t, testEnv.DaemonInfo.OSType == "windows")
 	skip.If(t, testEnv.IsRemoteDaemon)
-	skip.If(t, !ipvlanKernelSupport(), "Kernel doesn't support ipvlan")
+	skip.If(t, !ipvlanKernelSupport(t), "Kernel doesn't support ipvlan")
 
-	d := daemon.New(t, daemon.WithExperimental)
+	d := daemon.New(t)
 	d.StartWithBusybox(t)
 	defer d.Stop(t)
 
@@ -36,7 +38,7 @@ func TestDockerNetworkIpvlanPersistance(t *testing.T) {
 
 	// create a network specifying the desired sub-interface name
 	netName := "di-persist"
-	net.CreateNoError(t, context.Background(), c, netName,
+	net.CreateNoError(context.Background(), t, c, netName,
 		net.WithIPvlan("di-dummy0.70", ""),
 	)
 
@@ -47,9 +49,8 @@ func TestDockerNetworkIpvlanPersistance(t *testing.T) {
 }
 
 func TestDockerNetworkIpvlan(t *testing.T) {
-	skip.If(t, testEnv.DaemonInfo.OSType == "windows")
 	skip.If(t, testEnv.IsRemoteDaemon)
-	skip.If(t, !ipvlanKernelSupport(), "Kernel doesn't support ipvlan")
+	skip.If(t, !ipvlanKernelSupport(t), "Kernel doesn't support ipvlan")
 
 	for _, tc := range []struct {
 		name string
@@ -84,7 +85,7 @@ func TestDockerNetworkIpvlan(t *testing.T) {
 			test: testIpvlanAddressing,
 		},
 	} {
-		d := daemon.New(t, daemon.WithExperimental)
+		d := daemon.New(t)
 		d.StartWithBusybox(t)
 		c := d.NewClientT(t)
 
@@ -102,7 +103,7 @@ func testIpvlanSubinterface(client dclient.APIClient) func(*testing.T) {
 		defer n.DeleteInterface(t, master)
 
 		netName := "di-subinterface"
-		net.CreateNoError(t, context.Background(), client, netName,
+		net.CreateNoError(context.Background(), t, client, netName,
 			net.WithIPvlan("di-dummy0.60", ""),
 		)
 		assert.Check(t, n.IsNetworkAvailable(client, netName))
@@ -127,7 +128,7 @@ func testIpvlanOverlapParent(client dclient.APIClient) func(*testing.T) {
 		n.CreateVlanInterface(t, master, parent, "30")
 
 		netName := "di-subinterface"
-		net.CreateNoError(t, context.Background(), client, netName,
+		net.CreateNoError(context.Background(), t, client, netName,
 			net.WithIPvlan(parent, ""),
 		)
 		assert.Check(t, n.IsNetworkAvailable(client, netName))
@@ -144,14 +145,14 @@ func testIpvlanL2NilParent(client dclient.APIClient) func(*testing.T) {
 	return func(t *testing.T) {
 		// ipvlan l2 mode - dummy parent interface is provisioned dynamically
 		netName := "di-nil-parent"
-		net.CreateNoError(t, context.Background(), client, netName,
+		net.CreateNoError(context.Background(), t, client, netName,
 			net.WithIPvlan("", ""),
 		)
 		assert.Check(t, n.IsNetworkAvailable(client, netName))
 
 		ctx := context.Background()
-		id1 := container.Run(t, ctx, client, container.WithNetworkMode(netName))
-		id2 := container.Run(t, ctx, client, container.WithNetworkMode(netName))
+		id1 := container.Run(ctx, t, client, container.WithNetworkMode(netName))
+		id2 := container.Run(ctx, t, client, container.WithNetworkMode(netName))
 
 		_, err := container.Exec(ctx, client, id2, []string{"ping", "-c", "1", id1})
 		assert.NilError(t, err)
@@ -161,15 +162,15 @@ func testIpvlanL2NilParent(client dclient.APIClient) func(*testing.T) {
 func testIpvlanL2InternalMode(client dclient.APIClient) func(*testing.T) {
 	return func(t *testing.T) {
 		netName := "di-internal"
-		net.CreateNoError(t, context.Background(), client, netName,
+		net.CreateNoError(context.Background(), t, client, netName,
 			net.WithIPvlan("", ""),
 			net.WithInternal(),
 		)
 		assert.Check(t, n.IsNetworkAvailable(client, netName))
 
 		ctx := context.Background()
-		id1 := container.Run(t, ctx, client, container.WithNetworkMode(netName))
-		id2 := container.Run(t, ctx, client, container.WithNetworkMode(netName))
+		id1 := container.Run(ctx, t, client, container.WithNetworkMode(netName))
+		id2 := container.Run(ctx, t, client, container.WithNetworkMode(netName))
 
 		timeoutCtx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 		defer cancel()
@@ -186,7 +187,7 @@ func testIpvlanL2InternalMode(client dclient.APIClient) func(*testing.T) {
 func testIpvlanL3NilParent(client dclient.APIClient) func(*testing.T) {
 	return func(t *testing.T) {
 		netName := "di-nil-parent-l3"
-		net.CreateNoError(t, context.Background(), client, netName,
+		net.CreateNoError(context.Background(), t, client, netName,
 			net.WithIPvlan("", "l3"),
 			net.WithIPAM("172.28.230.0/24", ""),
 			net.WithIPAM("172.28.220.0/24", ""),
@@ -194,11 +195,11 @@ func testIpvlanL3NilParent(client dclient.APIClient) func(*testing.T) {
 		assert.Check(t, n.IsNetworkAvailable(client, netName))
 
 		ctx := context.Background()
-		id1 := container.Run(t, ctx, client,
+		id1 := container.Run(ctx, t, client,
 			container.WithNetworkMode(netName),
 			container.WithIPv4(netName, "172.28.220.10"),
 		)
-		id2 := container.Run(t, ctx, client,
+		id2 := container.Run(ctx, t, client,
 			container.WithNetworkMode(netName),
 			container.WithIPv4(netName, "172.28.230.10"),
 		)
@@ -211,7 +212,7 @@ func testIpvlanL3NilParent(client dclient.APIClient) func(*testing.T) {
 func testIpvlanL3InternalMode(client dclient.APIClient) func(*testing.T) {
 	return func(t *testing.T) {
 		netName := "di-internal-l3"
-		net.CreateNoError(t, context.Background(), client, netName,
+		net.CreateNoError(context.Background(), t, client, netName,
 			net.WithIPvlan("", "l3"),
 			net.WithInternal(),
 			net.WithIPAM("172.28.230.0/24", ""),
@@ -220,11 +221,11 @@ func testIpvlanL3InternalMode(client dclient.APIClient) func(*testing.T) {
 		assert.Check(t, n.IsNetworkAvailable(client, netName))
 
 		ctx := context.Background()
-		id1 := container.Run(t, ctx, client,
+		id1 := container.Run(ctx, t, client,
 			container.WithNetworkMode(netName),
 			container.WithIPv4(netName, "172.28.220.10"),
 		)
-		id2 := container.Run(t, ctx, client,
+		id2 := container.Run(ctx, t, client,
 			container.WithNetworkMode(netName),
 			container.WithIPv4(netName, "172.28.230.10"),
 		)
@@ -244,7 +245,7 @@ func testIpvlanL3InternalMode(client dclient.APIClient) func(*testing.T) {
 func testIpvlanL2MultiSubnet(client dclient.APIClient) func(*testing.T) {
 	return func(t *testing.T) {
 		netName := "dualstackl2"
-		net.CreateNoError(t, context.Background(), client, netName,
+		net.CreateNoError(context.Background(), t, client, netName,
 			net.WithIPvlan("", ""),
 			net.WithIPv6(),
 			net.WithIPAM("172.28.200.0/24", ""),
@@ -256,12 +257,12 @@ func testIpvlanL2MultiSubnet(client dclient.APIClient) func(*testing.T) {
 
 		// start dual stack containers and verify the user specified --ip and --ip6 addresses on subnets 172.28.100.0/24 and 2001:db8:abc2::/64
 		ctx := context.Background()
-		id1 := container.Run(t, ctx, client,
+		id1 := container.Run(ctx, t, client,
 			container.WithNetworkMode(netName),
 			container.WithIPv4(netName, "172.28.200.20"),
 			container.WithIPv6(netName, "2001:db8:abc8::20"),
 		)
-		id2 := container.Run(t, ctx, client,
+		id2 := container.Run(ctx, t, client,
 			container.WithNetworkMode(netName),
 			container.WithIPv4(netName, "172.28.200.21"),
 			container.WithIPv6(netName, "2001:db8:abc8::21"),
@@ -277,12 +278,12 @@ func testIpvlanL2MultiSubnet(client dclient.APIClient) func(*testing.T) {
 		assert.NilError(t, err)
 
 		// start dual stack containers and verify the user specified --ip and --ip6 addresses on subnets 172.28.102.0/24 and 2001:db8:abc4::/64
-		id3 := container.Run(t, ctx, client,
+		id3 := container.Run(ctx, t, client,
 			container.WithNetworkMode(netName),
 			container.WithIPv4(netName, "172.28.202.20"),
 			container.WithIPv6(netName, "2001:db8:abc6::20"),
 		)
-		id4 := container.Run(t, ctx, client,
+		id4 := container.Run(ctx, t, client,
 			container.WithNetworkMode(netName),
 			container.WithIPv4(netName, "172.28.202.21"),
 			container.WithIPv6(netName, "2001:db8:abc6::21"),
@@ -311,7 +312,7 @@ func testIpvlanL2MultiSubnet(client dclient.APIClient) func(*testing.T) {
 func testIpvlanL3MultiSubnet(client dclient.APIClient) func(*testing.T) {
 	return func(t *testing.T) {
 		netName := "dualstackl3"
-		net.CreateNoError(t, context.Background(), client, netName,
+		net.CreateNoError(context.Background(), t, client, netName,
 			net.WithIPvlan("", "l3"),
 			net.WithIPv6(),
 			net.WithIPAM("172.28.10.0/24", ""),
@@ -323,12 +324,12 @@ func testIpvlanL3MultiSubnet(client dclient.APIClient) func(*testing.T) {
 
 		// start dual stack containers and verify the user specified --ip and --ip6 addresses on subnets 172.28.100.0/24 and 2001:db8:abc2::/64
 		ctx := context.Background()
-		id1 := container.Run(t, ctx, client,
+		id1 := container.Run(ctx, t, client,
 			container.WithNetworkMode(netName),
 			container.WithIPv4(netName, "172.28.10.20"),
 			container.WithIPv6(netName, "2001:db8:abc9::20"),
 		)
-		id2 := container.Run(t, ctx, client,
+		id2 := container.Run(ctx, t, client,
 			container.WithNetworkMode(netName),
 			container.WithIPv4(netName, "172.28.10.21"),
 			container.WithIPv6(netName, "2001:db8:abc9::21"),
@@ -344,12 +345,12 @@ func testIpvlanL3MultiSubnet(client dclient.APIClient) func(*testing.T) {
 		assert.NilError(t, err)
 
 		// start dual stack containers and verify the user specified --ip and --ip6 addresses on subnets 172.28.102.0/24 and 2001:db8:abc4::/64
-		id3 := container.Run(t, ctx, client,
+		id3 := container.Run(ctx, t, client,
 			container.WithNetworkMode(netName),
 			container.WithIPv4(netName, "172.28.12.20"),
 			container.WithIPv6(netName, "2001:db8:abc7::20"),
 		)
-		id4 := container.Run(t, ctx, client,
+		id4 := container.Run(ctx, t, client,
 			container.WithNetworkMode(netName),
 			container.WithIPv4(netName, "172.28.12.21"),
 			container.WithIPv6(netName, "2001:db8:abc7::21"),
@@ -380,7 +381,7 @@ func testIpvlanAddressing(client dclient.APIClient) func(*testing.T) {
 		// Verify ipvlan l2 mode sets the proper default gateway routes via netlink
 		// for either an explicitly set route by the user or inferred via default IPAM
 		netNameL2 := "dualstackl2"
-		net.CreateNoError(t, context.Background(), client, netNameL2,
+		net.CreateNoError(context.Background(), t, client, netNameL2,
 			net.WithIPvlan("", "l2"),
 			net.WithIPv6(),
 			net.WithIPAM("172.28.140.0/24", "172.28.140.254"),
@@ -389,7 +390,7 @@ func testIpvlanAddressing(client dclient.APIClient) func(*testing.T) {
 		assert.Check(t, n.IsNetworkAvailable(client, netNameL2))
 
 		ctx := context.Background()
-		id1 := container.Run(t, ctx, client,
+		id1 := container.Run(ctx, t, client,
 			container.WithNetworkMode(netNameL2),
 		)
 		// Validate ipvlan l2 mode defaults gateway sets the default IPAM next-hop inferred from the subnet
@@ -403,7 +404,7 @@ func testIpvlanAddressing(client dclient.APIClient) func(*testing.T) {
 
 		// Validate ipvlan l3 mode sets the v4 gateway to dev eth0 and disregards any explicit or inferred next-hops
 		netNameL3 := "dualstackl3"
-		net.CreateNoError(t, context.Background(), client, netNameL3,
+		net.CreateNoError(context.Background(), t, client, netNameL3,
 			net.WithIPvlan("", "l3"),
 			net.WithIPv6(),
 			net.WithIPAM("172.28.160.0/24", "172.28.160.254"),
@@ -411,7 +412,7 @@ func testIpvlanAddressing(client dclient.APIClient) func(*testing.T) {
 		)
 		assert.Check(t, n.IsNetworkAvailable(client, netNameL3))
 
-		id2 := container.Run(t, ctx, client,
+		id2 := container.Run(ctx, t, client,
 			container.WithNetworkMode(netNameL3),
 		)
 		// Validate ipvlan l3 mode sets the v4 gateway to dev eth0 and disregards any explicit or inferred next-hops
@@ -425,7 +426,23 @@ func testIpvlanAddressing(client dclient.APIClient) func(*testing.T) {
 	}
 }
 
-// ensure Kernel version is >= v4.2 for ipvlan support
-func ipvlanKernelSupport() bool {
-	return n.CheckKernelMajorVersionGreaterOrEqualThen(4, 2)
+var (
+	once            sync.Once
+	ipvlanSupported bool
+)
+
+// figure out if ipvlan is supported by the kernel
+func ipvlanKernelSupport(t *testing.T) bool {
+	once.Do(func() {
+		// this may have the side effect of enabling the ipvlan module
+		exec.Command("modprobe", "ipvlan").Run()
+		_, err := os.Stat("/sys/module/ipvlan")
+		if err == nil {
+			ipvlanSupported = true
+		} else if !os.IsNotExist(err) {
+			t.Logf("WARNING: ipvlanKernelSupport: stat failed: %v\n", err)
+		}
+	})
+
+	return ipvlanSupported
 }

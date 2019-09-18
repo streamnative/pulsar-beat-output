@@ -22,7 +22,7 @@ package pulsar
 import (
 	"context"
 
-	"github.com/apache/pulsar/pulsar-client-go/pulsar"
+	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/elastic/beats/libbeat/beat"
 	"github.com/elastic/beats/libbeat/logp"
 	"github.com/elastic/beats/libbeat/outputs"
@@ -98,7 +98,7 @@ func (c *client) Publish(batch publisher.Batch) error {
 			logp.Debug("pulsar", "Failed event: %v, error: %v", event, err)
 		}
 
-		err = c.producer.Send(context.Background(), pulsar.ProducerMessage{
+		err = c.producer.Send(context.Background(), &pulsar.ProducerMessage{
 			Payload: []byte(serializedEvent),
 		})
 		if err != nil {

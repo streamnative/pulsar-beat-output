@@ -20,19 +20,23 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"path"
 	"path/filepath"
 	"runtime"
-	"strings"
 
 	"github.com/magefile/mage/mg"
 	"github.com/magefile/mage/sh"
 
-	"github.com/elastic/go-txfile/dev-tools/lib/mage/gotool"
-	"github.com/elastic/go-txfile/dev-tools/lib/mage/mgenv"
+	"github.com/urso/magetools/clitool"
+	"github.com/urso/magetools/ctrl"
+	"github.com/urso/magetools/fs"
+	"github.com/urso/magetools/gotool"
+	"github.com/urso/magetools/mgenv"
+
 	"github.com/elastic/go-txfile/dev-tools/lib/mage/xbuild"
 )
 
@@ -100,7 +104,7 @@ func (Info) Vars() {
 func (Prepare) All() { mg.Deps(Prepare.Dirs) }
 
 // Dirs creates requires build directories for storing artifacts
-func (Prepare) Dirs() error { return mkdir("build") }
+func (Prepare) Dirs() error { return fs.MakeDirs("build") }
 
 // Lint runs golint
 func (Check) Lint() error {
@@ -126,14 +130,18 @@ func (Build) Mage() error {
 func (Build) Test() error {
 	mg.Deps(Prepare.Dirs)
 
-	return withList(gotool.ListProjectPackages, failFastEach, func(pkg string) error {
-		tst := gotool.Test
+	goRun := gotool.New(clitool.NewCLIExecutor(true), mg.GoCmd())
+	return ctrl.ForEachFrom(goRun.List.ProjectPackages, failFastEach, func(pkg string) error {
+		fmt.Println("Compile test binary for package", pkg)
+
+		tst := goRun.Test
 		return tst(
+			context.Background(),
 			tst.OS(envBuildOS),
 			tst.ARCH(envBuildArch),
-			tst.Create(),
-			tst.WithCoverage(""),
+			tst.Create(true),
 			tst.Out(path.Join(buildHome, pkg, path.Base(pkg))),
+			tst.WithCoverage(""),
 			tst.Package(pkg),
 		)
 	})
@@ -142,62 +150,50 @@ func (Build) Test() error {
 // Test runs the unit tests.
 func Test() error {
 	mg.Deps(Prepare.Dirs)
+	goRun := gotool.New(clitool.NewCLIExecutor(true), mg.GoCmd())
 
 	if crossBuild() {
+		fmt.Println("Run cross build test")
 		return withXProvider(func(p xbuild.Provider) error {
 			mg.Deps(Build.Mage, Build.Test)
 
 			env := mgenv.MakeEnv()
 			env["TEST_USE_BIN"] = "true"
+			fmt.Println("run mage-linux-arm via docker")
 			return p.Run(env, "./build/mage-linux-arm", useIf("-v", mg.Verbose()), "test")
 		})
 	}
 
-	return withList(gotool.ListProjectPackages, failFastEach, func(pkg string) error {
+	return ctrl.ForEachFrom(goRun.List.ProjectPackages, failFastEach, func(pkg string) error {
 		fmt.Println("Test:", pkg)
-		if b, err := gotool.HasTests(pkg); !b {
+		if b, err := goRun.List.HasTests(pkg); !b {
 			fmt.Printf("Skipping %v: No tests found\n", pkg)
 			return err
 		}
 
 		home := path.Join(buildHome, pkg)
-		if err := mkdir(home); err != nil {
+		if err := fs.MakeDirs(home); err != nil {
 			return err
 		}
 
-		tst := gotool.Test
+		tst := goRun.Test
 		bin := path.Join(home, path.Base(pkg))
+		useBinary := fs.ExistsFile(bin) && envTestUseBin
+		fmt.Println("Run test for package '%v' (binary: %v)", pkg, useBinary)
+
 		return tst(
-			tst.Use(useIf(bin, existsFile(bin) && envTestUseBin)),
+			context.Background(),
+			tst.UseBinaryIf(bin, useBinary),
 			tst.WithCoverage(path.Join(home, "cover.out")),
 			tst.Short(envTestShort),
 			tst.Out(bin),
 			tst.Package(pkg),
-			tst.Verbose(),
+			tst.Verbose(true),
 		)
 	})
 }
 
 // helpers
-
-func withList(
-	gen func() ([]string, error),
-	mode func(...func() error) error,
-	fn func(string) error,
-) error {
-	list, err := gen()
-	if err != nil {
-		return err
-	}
-
-	ops := make([]func() error, len(list))
-	for i, v := range list {
-		v := v
-		ops[i] = func() error { return fn(v) }
-	}
-
-	return mode(ops...)
-}
 
 func useIf(s string, b bool) string {
 	if b {
@@ -206,69 +202,12 @@ func useIf(s string, b bool) string {
 	return ""
 }
 
-func existsFile(path string) bool {
-	fi, err := os.Stat(path)
-	return err == nil && fi.Mode().IsRegular()
-}
-
-func mkdirs(paths ...string) error {
-	for _, p := range paths {
-		if err := mkdir(p); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func mkdir(path string) error {
-	return os.MkdirAll(path, os.ModeDir|0700)
-}
-
-func failFastEach(ops ...func() error) error {
-	mode := each
+func failFastEach(ops ...ctrl.Operation) error {
+	mode := ctrl.Each
 	if envFailFast {
-		mode = and
+		mode = ctrl.Sequential
 	}
 	return mode(ops...)
-}
-
-func each(ops ...func() error) error {
-	var errs []error
-	for _, op := range ops {
-		if err := op(); err != nil {
-			errs = append(errs, err)
-		}
-	}
-	return makeErrs(errs)
-}
-
-func and(ops ...func() error) error {
-	for _, op := range ops {
-		if err := op(); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-type multiErr []error
-
-func makeErrs(errs []error) error {
-	if len(errs) == 0 {
-		return nil
-	}
-	return multiErr(errs)
-}
-
-func (m multiErr) Error() string {
-	var bld strings.Builder
-	for _, err := range m {
-		if bld.Len() > 0 {
-			bld.WriteByte('\n')
-			bld.WriteString(err.Error())
-		}
-	}
-	return bld.String()
 }
 
 func printTitle(s string) {
