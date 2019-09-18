@@ -135,7 +135,7 @@ func (is *imageSource) resolveRemote(ctx context.Context, ref string, platform *
 		dt   []byte
 	}
 	res, err := is.g.Do(ctx, ref, func(ctx context.Context) (interface{}, error) {
-		dgst, dt, err := imageutil.Config(ctx, ref, is.getResolver(ctx, is.ResolverOpt, ref, sm), is.ContentStore, platform)
+		dgst, dt, err := imageutil.Config(ctx, ref, is.getResolver(ctx, is.ResolverOpt, ref, sm), is.ContentStore, nil, platform)
 		if err != nil {
 			return nil, err
 		}
@@ -545,10 +545,10 @@ func (p *puller) Snapshot(ctx context.Context) (cache.ImmutableRef, error) {
 
 	r := image.NewRootFS()
 	rootFS, release, err := p.is.DownloadManager.Download(ctx, *r, runtime.GOOS, layers, pkgprogress.ChanOutput(pchan))
+	stopProgress()
 	if err != nil {
 		return nil, err
 	}
-	stopProgress()
 
 	ref, err := p.is.CacheAccessor.GetFromSnapshotter(ctx, string(rootFS.ChainID()), cache.WithDescription(fmt.Sprintf("pulled from %s", p.ref)))
 	release()
@@ -828,9 +828,9 @@ type resolverCache struct {
 }
 
 type cachedResolver struct {
+	counter int64 // needs to be 64bit aligned for 32bit systems
 	timeout time.Time
 	remotes.Resolver
-	counter int64
 }
 
 func (cr *cachedResolver) Resolve(ctx context.Context, ref string) (name string, desc ocispec.Descriptor, err error) {
@@ -842,7 +842,7 @@ func (r *resolverCache) Add(ctx context.Context, ref string, resolver remotes.Re
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	ref = r.domain(ref) + "-" + session.FromContext(ctx)
+	ref = r.repo(ref) + "-" + session.FromContext(ctx)
 
 	cr, ok := r.m[ref]
 	cr.timeout = time.Now().Add(time.Minute)
@@ -855,19 +855,19 @@ func (r *resolverCache) Add(ctx context.Context, ref string, resolver remotes.Re
 	return &cr
 }
 
-func (r *resolverCache) domain(refStr string) string {
+func (r *resolverCache) repo(refStr string) string {
 	ref, err := distreference.ParseNormalizedNamed(refStr)
 	if err != nil {
 		return refStr
 	}
-	return distreference.Domain(ref)
+	return ref.Name()
 }
 
 func (r *resolverCache) Get(ctx context.Context, ref string) remotes.Resolver {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	ref = r.domain(ref) + "-" + session.FromContext(ctx)
+	ref = r.repo(ref) + "-" + session.FromContext(ctx)
 
 	cr, ok := r.m[ref]
 	if !ok {

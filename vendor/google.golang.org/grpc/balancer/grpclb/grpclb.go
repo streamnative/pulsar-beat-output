@@ -28,7 +28,6 @@ import (
 	"context"
 	"errors"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -144,17 +143,9 @@ func (b *lbBuilder) Build(cc balancer.ClientConn, opt balancer.BuildOptions) bal
 	scheme := "grpclb_internal_" + strconv.FormatInt(time.Now().UnixNano(), 36)
 	r := &lbManualResolver{scheme: scheme, ccb: cc}
 
-	var target string
-	targetSplitted := strings.Split(cc.Target(), ":///")
-	if len(targetSplitted) < 2 {
-		target = cc.Target()
-	} else {
-		target = targetSplitted[1]
-	}
-
 	lb := &lbBalancer{
 		cc:              newLBCacheClientConn(cc),
-		target:          target,
+		target:          opt.Target.Endpoint,
 		opt:             opt,
 		fallbackTimeout: b.fallbackTimeout,
 		doneCh:          make(chan struct{}),
@@ -417,11 +408,11 @@ func (lb *lbBalancer) HandleResolvedAddrs(addrs []resolver.Address, err error) {
 	panic("not used")
 }
 
-func (lb *lbBalancer) handleServiceConfig(sc string) {
+func (lb *lbBalancer) handleServiceConfig(gc *grpclbServiceConfig) {
 	lb.mu.Lock()
 	defer lb.mu.Unlock()
 
-	newUsePickFirst := childIsPickFirst(sc)
+	newUsePickFirst := childIsPickFirst(gc)
 	if lb.usePickFirst == newUsePickFirst {
 		return
 	}
@@ -431,13 +422,14 @@ func (lb *lbBalancer) handleServiceConfig(sc string) {
 	lb.refreshSubConns(lb.backendAddrs, lb.inFallback, newUsePickFirst)
 }
 
-func (lb *lbBalancer) UpdateResolverState(rs resolver.State) {
+func (lb *lbBalancer) UpdateClientConnState(ccs balancer.ClientConnState) {
 	if grpclog.V(2) {
-		grpclog.Infof("lbBalancer: UpdateResolverState: %+v", rs)
+		grpclog.Infof("lbBalancer: UpdateClientConnState: %+v", ccs)
 	}
-	lb.handleServiceConfig(rs.ServiceConfig)
+	gc, _ := ccs.BalancerConfig.(*grpclbServiceConfig)
+	lb.handleServiceConfig(gc)
 
-	addrs := rs.Addresses
+	addrs := ccs.ResolverState.Addresses
 	if len(addrs) <= 0 {
 		return
 	}

@@ -23,7 +23,7 @@ const (
 	huffNodesLen    = 512
 
 	// BlockSizeMax is maximum input size for a single block uncompressed.
-	BlockSizeMax = 128 << 10
+	BlockSizeMax = 1<<18 - 1
 )
 
 var (
@@ -35,6 +35,9 @@ var (
 
 	// ErrTooBig is return if input is too large for a single block.
 	ErrTooBig = errors.New("input too big")
+
+	// ErrMaxDecodedSizeExceeded is return if input is too large for a single block.
+	ErrMaxDecodedSizeExceeded = errors.New("maximum output size exceeded")
 )
 
 type ReusePolicy uint8
@@ -86,6 +89,11 @@ type Scratch struct {
 	// Reuse will specify the reuse policy
 	Reuse ReusePolicy
 
+	// MaxDecodedSize will set the maximum allowed output size.
+	// This value will automatically be set to BlockSizeMax if not set.
+	// Decoders will return ErrMaxDecodedSizeExceeded is this limit is exceeded.
+	MaxDecodedSize int
+
 	br             byteReader
 	symbolLen      uint16 // Length of active part of the symbol table.
 	maxCount       int    // count of the most probable symbol
@@ -115,6 +123,9 @@ func (s *Scratch) prepare(in []byte) (*Scratch, error) {
 	}
 	if s.TableLog > tableLogMax {
 		return nil, fmt.Errorf("tableLog (%d) > maxTableLog (%d)", s.TableLog, tableLogMax)
+	}
+	if s.MaxDecodedSize <= 0 || s.MaxDecodedSize > BlockSizeMax {
+		s.MaxDecodedSize = BlockSizeMax
 	}
 	if s.clearCount && s.maxCount == 0 {
 		for i := range s.count {
@@ -194,6 +205,7 @@ func (c cTable) write(s *Scratch) error {
 			s.Out = append(s.Out, b...)
 			return nil
 		}
+		// Unable to compress (RLE/uncompressible)
 	}
 	// write raw values as 4-bits (max : 15)
 	if maxSymbolValue > (256 - 128) {

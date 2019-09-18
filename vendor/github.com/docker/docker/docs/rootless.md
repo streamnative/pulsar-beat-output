@@ -20,7 +20,6 @@ $ grep ^$(whoami): /etc/subgid
 penguin:231072:65536
 ```
 
-* Either [slirp4netns](https://github.com/rootless-containers/slirp4netns) (v0.3+) or [VPNKit](https://github.com/moby/vpnkit) needs to be installed. slirp4netns is preferred for the best performance.
 
 ### Distribution-specific hint
 
@@ -55,10 +54,9 @@ penguin:231072:65536
 You need to run `dockerd-rootless.sh` instead of `dockerd`.
 
 ```console
-$ dockerd-rootless.sh --experimental --userland-proxy --userland-proxy-path=$(which rootlesskit-docker-proxy)"
+$ dockerd-rootless.sh --experimental
 ```
 As Rootless mode is experimental per se, currently you always need to run `dockerd-rootless.sh` with `--experimental`.
-Also, to expose ports, you need to set `--userland-proxy-path` to the path of `rootlesskit-docker-proxy` binary.
 
 Remarks:
 * The socket path is set to `$XDG_RUNTIME_DIR/docker.sock` by default. `$XDG_RUNTIME_DIR` is typically set to `/run/user/$UID`.
@@ -66,6 +64,8 @@ Remarks:
 * The exec dir is set to `$XDG_RUNTIME_DIR/docker` by default.
 * The daemon config dir is set to `~/.config/docker` (not `~/.docker`, which is used by the client) by default.
 * The `dockerd-rootless.sh` script executes `dockerd` in its own user, mount, and network namespaces. You can enter the namespaces by running `nsenter -U --preserve-credentials -n -m -t $(cat $XDG_RUNTIME_DIR/docker.pid)`.
+* `docker info` shows `rootless` in `SecurityOptions`
+* `docker info` shows `none` as `Cgroup Driver`
 
 ### Client
 
@@ -75,6 +75,17 @@ You can just use the upstream Docker client but you need to set the socket path 
 $ docker -H unix://$XDG_RUNTIME_DIR/docker.sock run -d nginx
 ```
 
+### Expose Docker API socket via TCP
+
+To expose the Docker API socket via TCP, you need to launch `dockerd-rootless.sh` with `DOCKERD_ROOTLESS_ROOTLESSKIT_FLAGS="-p 0.0.0.0:2376:2376/tcp"`.
+
+```console
+$ DOCKERD_ROOTLESS_ROOTLESSKIT_FLAGS="-p 0.0.0.0:2376:2376/tcp" \
+ dockerd-rootless.sh --experimental \
+ -H tcp://0.0.0.0:2376 \
+ --tlsverify --tlscacert=ca.pem --tlscert=cert.pem --tlskey=key.pem
+```
+
 ### Routing ping packets
 
 To route ping packets, you need to set up `net.ipv4.ping_group_range` properly as the root.
@@ -82,3 +93,12 @@ To route ping packets, you need to set up `net.ipv4.ping_group_range` properly a
 ```console
 $ sudo sh -c "echo 0   2147483647  > /proc/sys/net/ipv4/ping_group_range"
 ```
+
+### Changing network stack
+
+`dockerd-rootless.sh` uses [slirp4netns](https://github.com/rootless-containers/slirp4netns) (if installed) or [VPNKit](https://github.com/moby/vpnkit) as the network stack by default.
+These network stacks run in userspace and might have performance overhead. See [RootlessKit documentation](https://github.com/rootless-containers/rootlesskit/tree/v0.6.0#network-drivers) for further information.
+
+Optionally, you can use `lxc-user-nic` instead for the best performance.
+To use `lxc-user-nic`, you need to edit [`/etc/lxc/lxc-usernet`](https://github.com/rootless-containers/rootlesskit/tree/v0.6.0#--netlxc-user-nic-experimental) and set `$DOCKERD_ROOTLESS_ROOTLESSKIT_NET=lxc-user-nic`.
+

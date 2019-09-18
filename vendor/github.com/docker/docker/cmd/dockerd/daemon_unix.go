@@ -13,19 +13,18 @@ import (
 	"time"
 
 	"github.com/containerd/containerd/runtime/v1/linux"
-	"github.com/docker/docker/cmd/dockerd/hack"
 	"github.com/docker/docker/daemon"
 	"github.com/docker/docker/daemon/config"
 	"github.com/docker/docker/libcontainerd/supervisor"
 	"github.com/docker/docker/pkg/homedir"
-	"github.com/docker/docker/rootless"
 	"github.com/docker/libnetwork/portallocator"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
 
 func getDefaultDaemonConfigDir() (string, error) {
-	if !rootless.RunningWithNonRootUsername() {
+	if !honorXDG {
 		return "/etc/docker", nil
 	}
 	// NOTE: CLI uses ~/.docker while the daemon uses ~/.config/docker, because
@@ -58,6 +57,10 @@ func setDefaultUmask() error {
 	return nil
 }
 
+func getDaemonConfDir(_ string) (string, error) {
+	return getDefaultDaemonConfigDir()
+}
+
 func (cli *DaemonCli) getPlatformContainerdDaemonOpts() ([]supervisor.DaemonOpt, error) {
 	opts := []supervisor.DaemonOpt{
 		supervisor.WithOOMScore(cli.Config.OOMScoreAdjust),
@@ -72,7 +75,7 @@ func (cli *DaemonCli) getPlatformContainerdDaemonOpts() ([]supervisor.DaemonOpt,
 	return opts, nil
 }
 
-// setupConfigReloadTrap configures the USR2 signal to reload the configuration.
+// setupConfigReloadTrap configures the SIGHUP signal to reload the configuration.
 func (cli *DaemonCli) setupConfigReloadTrap() {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, unix.SIGHUP)
@@ -118,18 +121,6 @@ func allocateDaemonPort(addr string) error {
 	return nil
 }
 
-func wrapListeners(proto string, ls []net.Listener) []net.Listener {
-	switch proto {
-	case "unix":
-		ls[0] = &hack.MalformedHostHeaderOverride{Listener: ls[0]}
-	case "fd":
-		for i := range ls {
-			ls[i] = &hack.MalformedHostHeaderOverride{Listener: ls[i]}
-		}
-	}
-	return ls
-}
-
 func newCgroupParent(config *config.Config) string {
 	cgroupParent := "docker"
 	useSystemd := daemon.UsingSystemd(config)
@@ -148,11 +139,12 @@ func newCgroupParent(config *config.Config) string {
 func (cli *DaemonCli) initContainerD(ctx context.Context) (func(time.Duration) error, error) {
 	var waitForShutdown func(time.Duration) error
 	if cli.Config.ContainerdAddr == "" {
-		systemContainerdAddr, ok, err := systemContainerdRunning(cli.Config.IsRootless())
+		systemContainerdAddr, ok, err := systemContainerdRunning(honorXDG)
 		if err != nil {
 			return nil, errors.Wrap(err, "could not determine whether the system containerd is running")
 		}
 		if !ok {
+			logrus.Debug("Containerd not running, starting daemon managed containerd")
 			opts, err := cli.getContainerdDaemonOpts()
 			if err != nil {
 				return nil, errors.Wrap(err, "failed to generate containerd options")
@@ -162,6 +154,7 @@ func (cli *DaemonCli) initContainerD(ctx context.Context) (func(time.Duration) e
 			if err != nil {
 				return nil, errors.Wrap(err, "failed to start containerd")
 			}
+			logrus.Debug("Started daemon managed containerd")
 			cli.Config.ContainerdAddr = r.Address()
 
 			// Try to wait for containerd to shutdown

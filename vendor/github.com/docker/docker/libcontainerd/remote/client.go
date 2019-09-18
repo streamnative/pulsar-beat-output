@@ -185,7 +185,7 @@ func (c *client) Start(ctx context.Context, id, checkpointDir string, withStdin 
 	}
 	labels, err := ctr.Labels(ctx)
 	if err != nil {
-		return -1, errors.Wrap(err, "failed to retreive labels")
+		return -1, errors.Wrap(err, "failed to retrieve labels")
 	}
 	bundle := labels[DockerContainerBundlePath]
 	uid, gid := getSpecUser(spec)
@@ -652,13 +652,6 @@ func (c *client) processEvent(ctx context.Context, et libcontainerdtypes.EventTy
 					}).Error("exit event")
 				return
 			}
-			_, err = p.Delete(context.Background())
-			if err != nil {
-				c.logger.WithError(err).WithFields(logrus.Fields{
-					"container": ei.ContainerID,
-					"process":   ei.ProcessID,
-				}).Warn("failed to delete process")
-			}
 
 			ctr, err := c.getContainer(ctx, ei.ContainerID)
 			if err != nil {
@@ -672,10 +665,17 @@ func (c *client) processEvent(ctx context.Context, et libcontainerdtypes.EventTy
 					c.logger.WithFields(logrus.Fields{
 						"container": ei.ContainerID,
 						"error":     err,
-					}).Error("failed to find container")
+					}).Error("failed to get container labels")
 					return
 				}
 				newFIFOSet(labels[DockerContainerBundlePath], ei.ProcessID, true, false).Close()
+			}
+			_, err = p.Delete(context.Background())
+			if err != nil {
+				c.logger.WithError(err).WithFields(logrus.Fields{
+					"container": ei.ContainerID,
+					"process":   ei.ProcessID,
+				}).Warn("failed to delete process")
 			}
 		}
 	})
@@ -703,10 +703,16 @@ func (c *client) processEventStream(ctx context.Context, ns string) {
 				errStatus, ok := status.FromError(err)
 				if !ok || errStatus.Code() != codes.Canceled {
 					c.logger.WithError(err).Error("failed to get event")
-					go c.processEventStream(ctx, ns)
-				} else {
-					c.logger.WithError(ctx.Err()).Info("stopping event stream following graceful shutdown")
+
+					// rate limit
+					select {
+					case <-time.After(time.Second):
+						go c.processEventStream(ctx, ns)
+						return
+					case <-ctx.Done():
+					}
 				}
+				c.logger.WithError(ctx.Err()).Info("stopping event stream following graceful shutdown")
 			}
 			return
 		case ev = <-eventStream:

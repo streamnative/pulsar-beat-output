@@ -13,12 +13,24 @@ var arr []string
 
 func SupportedPlatforms() []string {
 	once.Do(func() {
-		def := platforms.DefaultString()
+		def := defaultPlatform()
 		arr = append(arr, def)
 		if p := "linux/amd64"; def != p && amd64Supported() == nil {
 			arr = append(arr, p)
 		}
 		if p := "linux/arm64"; def != p && arm64Supported() == nil {
+			arr = append(arr, p)
+		}
+		if p := "linux/riscv64"; def != p && riscv64Supported() == nil {
+			arr = append(arr, p)
+		}
+		if p := "linux/ppc64le"; def != p && ppc64leSupported() == nil {
+			arr = append(arr, p)
+		}
+		if p := "linux/s390x"; def != p && s390xSupported() == nil {
+			arr = append(arr, p)
+		}
+		if p := "linux/386"; def != p && i386Supported() == nil {
 			arr = append(arr, p)
 		}
 		if !strings.HasPrefix(def, "linux/arm/") && armSupported() == nil {
@@ -34,7 +46,7 @@ func SupportedPlatforms() []string {
 //the end user could fix the issue based on those warning, and thus no need to drop
 //the platform from the candidates.
 func WarnIfUnsupported(pfs []string) {
-	def := platforms.DefaultString()
+	def := defaultPlatform()
 	for _, p := range pfs {
 		if p != def {
 			if p == "linux/amd64" {
@@ -47,6 +59,26 @@ func WarnIfUnsupported(pfs []string) {
 					printPlatfromWarning(p, err)
 				}
 			}
+			if p == "linux/riscv64" {
+				if err := riscv64Supported(); err != nil {
+					printPlatfromWarning(p, err)
+				}
+			}
+			if p == "linux/ppc64le" {
+				if err := ppc64leSupported(); err != nil {
+					printPlatfromWarning(p, err)
+				}
+			}
+			if p == "linux/s390x" {
+				if err := s390xSupported(); err != nil {
+					printPlatfromWarning(p, err)
+				}
+			}
+			if p == "linux/386" {
+				if err := i386Supported(); err != nil {
+					printPlatfromWarning(p, err)
+				}
+			}
 			if strings.HasPrefix(p, "linux/arm/v6") || strings.HasPrefix(p, "linux/arm/v7") {
 				if err := armSupported(); err != nil {
 					printPlatfromWarning(p, err)
@@ -54,6 +86,10 @@ func WarnIfUnsupported(pfs []string) {
 			}
 		}
 	}
+}
+
+func defaultPlatform() string {
+	return platforms.Format(platforms.Normalize(platforms.DefaultSpec()))
 }
 
 func printPlatfromWarning(p string, err error) {

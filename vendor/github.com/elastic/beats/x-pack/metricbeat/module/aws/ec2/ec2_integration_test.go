@@ -2,6 +2,8 @@
 // or more contributor license agreements. Licensed under the Elastic License;
 // you may not use this file except in compliance with the Elastic License.
 
+// +build integration
+
 package ec2
 
 import (
@@ -14,23 +16,18 @@ import (
 )
 
 func TestFetch(t *testing.T) {
-	config, info := mtest.GetConfigForTest("ec2")
+	config, info := mtest.GetConfigForTest("ec2", "300s")
 	if info != "" {
 		t.Skip("Skipping TestFetch: " + info)
 	}
 
-	ec2MetricSet := mbtest.NewReportingMetricSetV2(t, config)
-	events, errs := mbtest.ReportingFetchV2(ec2MetricSet)
-	if errs != nil {
-		t.Skip("Skipping TestFetch: failed to make api calls. Please check $AWS_ACCESS_KEY_ID, " +
-			"$AWS_SECRET_ACCESS_KEY and $AWS_SESSION_TOKEN in config.yml")
+	metricSet := mbtest.NewReportingMetricSetV2Error(t, config)
+	events, errs := mbtest.ReportingFetchV2Error(metricSet)
+	if len(errs) > 0 {
+		t.Fatalf("Expected 0 error, had %d. %v\n", len(errs), errs)
 	}
 
-	assert.Empty(t, errs)
-	if !assert.NotEmpty(t, events) {
-		t.FailNow()
-	}
-	t.Logf("Module: %s Metricset: %s", ec2MetricSet.Module().Name(), ec2MetricSet.Name())
+	assert.NotEmpty(t, events)
 
 	for _, event := range events {
 		// RootField
@@ -69,14 +66,13 @@ func TestFetch(t *testing.T) {
 }
 
 func TestData(t *testing.T) {
-	config, info := mtest.GetConfigForTest("ec2")
+	config, info := mtest.GetConfigForTest("ec2", "300s")
 	if info != "" {
 		t.Skip("Skipping TestData: " + info)
 	}
 
-	ec2MetricSet := mbtest.NewReportingMetricSetV2(t, config)
-	errs := mbtest.WriteEventsReporterV2(ec2MetricSet, t, "/")
-	if errs != nil {
-		t.Fatal("write", errs)
+	metricSet := mbtest.NewReportingMetricSetV2Error(t, config)
+	if err := mbtest.WriteEventsReporterV2Error(metricSet, t, "/"); err != nil {
+		t.Fatal("write", err)
 	}
 }
