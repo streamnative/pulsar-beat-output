@@ -2,14 +2,6 @@
 
 package copy // import "github.com/docker/docker/daemon/graphdriver/copy"
 
-/*
-#include <linux/fs.h>
-
-#ifndef FICLONE
-#define FICLONE		_IOW(0x94, 9, int)
-#endif
-*/
-import "C"
 import (
 	"container/list"
 	"fmt"
@@ -50,7 +42,7 @@ func copyRegular(srcPath, dstPath string, fileinfo os.FileInfo, copyWithFileRang
 	defer dstFile.Close()
 
 	if *copyWithFileClone {
-		_, _, err = unix.Syscall(unix.SYS_IOCTL, dstFile.Fd(), C.FICLONE, srcFile.Fd())
+		err = fiClone(srcFile, dstFile)
 		if err == nil {
 			return nil
 		}
@@ -154,7 +146,8 @@ func DirCopy(srcDir, dstDir string, copyMode Mode, copyXattrs bool) error {
 
 		switch mode := f.Mode(); {
 		case mode.IsRegular():
-			id := fileID{dev: stat.Dev, ino: stat.Ino}
+			//the type is 32bit on mips
+			id := fileID{dev: uint64(stat.Dev), ino: stat.Ino} // nolint: unconvert
 			if copyMode == Hardlink {
 				isHardlink = true
 				if err2 := os.Link(srcPath, dstPath); err2 != nil {

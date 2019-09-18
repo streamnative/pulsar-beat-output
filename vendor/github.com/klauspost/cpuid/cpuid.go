@@ -27,6 +27,7 @@ const (
 	VMware
 	XenHVM
 	Bhyve
+	Hygon
 )
 
 const (
@@ -79,6 +80,7 @@ const (
 	SGX                     // Software Guard Extensions
 	IBPB                    // Indirect Branch Restricted Speculation (IBRS) and Indirect Branch Predictor Barrier (IBPB)
 	STIBP                   // Single Thread Indirect Branch Predictors
+	VMX                     // Virtual Machine Extensions
 
 	// Performance indicators
 	SSE2SLOW // SSE2 is supported, but usually not faster
@@ -136,6 +138,7 @@ var flagNames = map[Flags]string{
 	SGX:         "SGX",         // Software Guard Extensions
 	IBPB:        "IBPB",        // Indirect Branch Restricted Speculation and Indirect Branch Predictor Barrier
 	STIBP:       "STIBP",       // Single Thread Indirect Branch Predictors
+	VMX:         "VMX",         // Virtual Machine Extensions
 
 	// Performance indicators
 	SSE2SLOW: "SSE2SLOW", // SSE2 supported, but usually not faster
@@ -220,6 +223,11 @@ func (c CPUInfo) Amd3dnow() bool {
 // Amd3dnowExt indicates support of AMD 3DNOW! Extended instructions
 func (c CPUInfo) Amd3dnowExt() bool {
 	return c.Features&AMD3DNOWEXT != 0
+}
+
+// VMX indicates support of VMX
+func (c CPUInfo) VMX() bool {
+	return c.Features&VMX != 0
 }
 
 // MMX indicates support of MMX instructions
@@ -473,6 +481,11 @@ func (c CPUInfo) AMD() bool {
 	return c.VendorID == AMD
 }
 
+// Hygon returns true if vendor is recognized as Hygon
+func (c CPUInfo) Hygon() bool {
+	return c.VendorID == Hygon
+}
+
 // Transmeta returns true if vendor is recognized as Transmeta
 func (c CPUInfo) Transmeta() bool {
 	return c.VendorID == Transmeta
@@ -626,7 +639,7 @@ func logicalCores() int {
 		}
 		_, b, _, _ := cpuidex(0xb, 1)
 		return int(b & 0xffff)
-	case AMD:
+	case AMD, Hygon:
 		_, b, _, _ := cpuid(1)
 		return int((b >> 16) & 0xff)
 	default:
@@ -648,7 +661,7 @@ func physicalCores() int {
 	switch vendorID() {
 	case Intel:
 		return logicalCores() / threadsPerCore()
-	case AMD:
+	case AMD, Hygon:
 		if maxExtendedFunction() >= 0x80000008 {
 			_, _, c, _ := cpuid(0x80000008)
 			return int(c&0xff) + 1
@@ -672,6 +685,7 @@ var vendorMapping = map[string]Vendor{
 	"VMwareVMware": VMware,
 	"XenVMMXenVMM": XenHVM,
 	"bhyve bhyve ": Bhyve,
+	"HygonGenuine": Hygon,
 }
 
 func vendorID() Vendor {
@@ -744,7 +758,7 @@ func (c *CPUInfo) cacheSize() {
 				c.Cache.L3 = size
 			}
 		}
-	case AMD:
+	case AMD, Hygon:
 		// Untested.
 		if maxExtendedFunction() < 0x80000005 {
 			return
@@ -812,6 +826,9 @@ func support() Flags {
 	}
 	if (c & 1) != 0 {
 		rval |= SSE3
+	}
+	if (c & (1 << 5)) != 0 {
+		rval |= VMX
 	}
 	if (c & 0x00000200) != 0 {
 		rval |= SSSE3

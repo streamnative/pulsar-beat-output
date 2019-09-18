@@ -14,7 +14,6 @@ import (
 	"github.com/moby/buildkit/exporter/containerimage/exptypes"
 	"github.com/moby/buildkit/frontend"
 	"github.com/moby/buildkit/frontend/gateway"
-	"github.com/moby/buildkit/identity"
 	"github.com/moby/buildkit/session"
 	"github.com/moby/buildkit/solver"
 	"github.com/moby/buildkit/util/entitlements"
@@ -40,6 +39,7 @@ type Solver struct {
 	workerController          *worker.Controller
 	solver                    *solver.Solver
 	resolveWorker             ResolveWorkerFunc
+	eachWorker                func(func(worker.Worker) error) error
 	frontends                 map[string]frontend.Frontend
 	resolveCacheImporterFuncs map[string]remotecache.ResolveCacheImporterFunc
 	platforms                 []specs.Platform
@@ -52,6 +52,7 @@ func New(wc *worker.Controller, f map[string]frontend.Frontend, cache solver.Cac
 	s := &Solver{
 		workerController:          wc,
 		resolveWorker:             defaultResolver(wc),
+		eachWorker:                allWorkers(wc),
 		frontends:                 f,
 		resolveCacheImporterFuncs: resolveCI,
 		gatewayForwarder:          gatewayForwarder,
@@ -88,6 +89,7 @@ func (s *Solver) Bridge(b solver.Builder) frontend.FrontendLLBBridge {
 		builder:                   b,
 		frontends:                 s.frontends,
 		resolveWorker:             s.resolveWorker,
+		eachWorker:                s.eachWorker,
 		resolveCacheImporterFuncs: s.resolveCacheImporterFuncs,
 		cms:                       map[string]solver.CacheManager{},
 		platforms:                 s.platforms,
@@ -286,6 +288,20 @@ func defaultResolver(wc *worker.Controller) ResolveWorkerFunc {
 		return wc.GetDefault()
 	}
 }
+func allWorkers(wc *worker.Controller) func(func(w worker.Worker) error) error {
+	return func(f func(worker.Worker) error) error {
+		all, err := wc.List()
+		if err != nil {
+			return err
+		}
+		for _, w := range all {
+			if err := f(w); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+}
 
 func oneOffProgress(ctx context.Context, id string) func(err error) error {
 	pw, _, _ := progress.FromContext(ctx)
@@ -306,7 +322,7 @@ func oneOffProgress(ctx context.Context, id string) func(err error) error {
 
 func inVertexContext(ctx context.Context, name, id string, f func(ctx context.Context) error) error {
 	if id == "" {
-		id = identity.NewID()
+		id = name
 	}
 	v := client.Vertex{
 		Digest: digest.FromBytes([]byte(id)),

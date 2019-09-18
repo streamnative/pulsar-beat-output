@@ -3,8 +3,10 @@ package main
 import (
 	"runtime"
 
+	"github.com/docker/docker/daemon"
 	"github.com/docker/docker/daemon/config"
 	"github.com/docker/docker/opts"
+	"github.com/docker/docker/plugin/executor/containerd"
 	"github.com/docker/docker/registry"
 	"github.com/spf13/pflag"
 )
@@ -12,6 +14,8 @@ import (
 const (
 	// defaultShutdownTimeout is the default shutdown timeout for the daemon
 	defaultShutdownTimeout = 15
+	// defaultTrustKeyFile is the default filename for the trust key
+	defaultTrustKeyFile = "key.json"
 )
 
 // installCommonConfigFlags adds flags to the pflag.FlagSet to configure the daemon
@@ -83,7 +87,13 @@ func installCommonConfigFlags(conf *config.Config, flags *pflag.FlagSet) error {
 
 	conf.MaxConcurrentDownloads = &maxConcurrentDownloads
 	conf.MaxConcurrentUploads = &maxConcurrentUploads
-	return nil
+
+	flags.StringVar(&conf.ContainerdNamespace, "containerd-namespace", daemon.ContainersNamespace, "Containerd namespace to use")
+	if err := flags.MarkHidden("containerd-namespace"); err != nil {
+		return err
+	}
+	flags.StringVar(&conf.ContainerdPluginNamespace, "containerd-plugins-namespace", containerd.PluginNamespace, "Containerd namespace to use for plugins")
+	return flags.MarkHidden("containerd-plugins-namespace")
 }
 
 func installRegistryServiceFlags(options *registry.ServiceOptions, flags *pflag.FlagSet) {

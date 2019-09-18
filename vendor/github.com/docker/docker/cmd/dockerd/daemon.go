@@ -91,6 +91,8 @@ func (cli *DaemonCli) start(opts *daemonOptions) (err error) {
 		return err
 	}
 
+	logrus.Info("Starting up")
+
 	cli.configFile = &opts.configFile
 	cli.flags = opts.flags
 
@@ -102,6 +104,12 @@ func (cli *DaemonCli) start(opts *daemonOptions) (err error) {
 		logrus.Warn("Running experimental build")
 		if cli.Config.IsRootless() {
 			logrus.Warn("Running in rootless mode. Cgroups, AppArmor, and CRIU are disabled.")
+		}
+		if rootless.RunningWithRootlessKit() {
+			logrus.Info("Running with RootlessKit integration")
+			if !cli.Config.IsRootless() {
+				return fmt.Errorf("rootless mode needs to be enabled for running with RootlessKit")
+			}
 		}
 	} else {
 		if cli.Config.IsRootless() {
@@ -125,7 +133,7 @@ func (cli *DaemonCli) start(opts *daemonOptions) (err error) {
 		return err
 	}
 
-	if err := system.MkdirAll(cli.Config.ExecRoot, 0700, ""); err != nil {
+	if err := system.MkdirAll(cli.Config.ExecRoot, 0700); err != nil {
 		return err
 	}
 
@@ -260,6 +268,7 @@ func (cli *DaemonCli) start(opts *daemonOptions) (err error) {
 		return errors.Wrap(errAPI, "shutting down due to ServeAPI error")
 	}
 
+	logrus.Info("Daemon shutdown complete")
 	return nil
 }
 
@@ -309,6 +318,8 @@ func newRouterOptions(config *config.Config, d *daemon.Daemon) (routerOptions, e
 		ResolverOpt:         d.NewResolveOptionsFunc(),
 		BuilderConfig:       config.Builder,
 		Rootless:            d.Rootless(),
+		IdentityMapping:     d.IdentityMapping(),
+		DNSConfig:           config.DNSConfig,
 	})
 	if err != nil {
 		return opts, err
@@ -391,10 +402,14 @@ func shutdownDaemon(d *daemon.Daemon) {
 		logrus.Debug("Clean shutdown succeeded")
 		return
 	}
+
+	timeout := time.NewTimer(time.Duration(shutdownTimeout) * time.Second)
+	defer timeout.Stop()
+
 	select {
 	case <-ch:
 		logrus.Debug("Clean shutdown succeeded")
-	case <-time.After(time.Duration(shutdownTimeout) * time.Second):
+	case <-timeout.C:
 		logrus.Error("Force shutdown daemon")
 	}
 }
@@ -413,6 +428,14 @@ func loadDaemonCliConfig(opts *daemonOptions) (*config.Config, error) {
 		conf.CommonTLSOptions.CAFile = opts.TLSOptions.CAFile
 		conf.CommonTLSOptions.CertFile = opts.TLSOptions.CertFile
 		conf.CommonTLSOptions.KeyFile = opts.TLSOptions.KeyFile
+	}
+
+	if conf.TrustKeyPath == "" {
+		daemonConfDir, err := getDaemonConfDir(conf.Root)
+		if err != nil {
+			return nil, err
+		}
+		conf.TrustKeyPath = filepath.Join(daemonConfDir, defaultTrustKeyFile)
 	}
 
 	if flags.Changed("graph") && flags.Changed("data-root") {
@@ -589,11 +612,17 @@ func newAPIServerConfig(cli *DaemonCli) (*apiserver.Config, error) {
 
 func loadListeners(cli *DaemonCli, serverConfig *apiserver.Config) ([]string, error) {
 	var hosts []string
+	seen := make(map[string]struct{}, len(cli.Config.Hosts))
+
 	for i := 0; i < len(cli.Config.Hosts); i++ {
 		var err error
-		if cli.Config.Hosts[i], err = dopts.ParseHost(cli.Config.TLS, rootless.RunningWithNonRootUsername(), cli.Config.Hosts[i]); err != nil {
+		if cli.Config.Hosts[i], err = dopts.ParseHost(cli.Config.TLS, honorXDG, cli.Config.Hosts[i]); err != nil {
 			return nil, errors.Wrapf(err, "error parsing -H %s", cli.Config.Hosts[i])
 		}
+		if _, ok := seen[cli.Config.Hosts[i]]; ok {
+			continue
+		}
+		seen[cli.Config.Hosts[i]] = struct{}{}
 
 		protoAddr := cli.Config.Hosts[i]
 		protoAddrParts := strings.SplitN(protoAddr, "://", 2)
@@ -612,7 +641,6 @@ func loadListeners(cli *DaemonCli, serverConfig *apiserver.Config) ([]string, er
 		if err != nil {
 			return nil, err
 		}
-		ls = wrapListeners(proto, ls)
 		// If we're binding to a TCP port, make sure that a container doesn't try to use it.
 		if proto == "tcp" {
 			if err := allocateDaemonPort(addr); err != nil {
@@ -668,9 +696,9 @@ func validateAuthzPlugins(requestedPlugins []string, pg plugingetter.PluginGette
 	return nil
 }
 
-func systemContainerdRunning(isRootless bool) (string, bool, error) {
+func systemContainerdRunning(honorXDG bool) (string, bool, error) {
 	addr := containerddefaults.DefaultAddress
-	if isRootless {
+	if honorXDG {
 		runtimeDir, err := homedir.GetRuntimeDir()
 		if err != nil {
 			return "", false, err

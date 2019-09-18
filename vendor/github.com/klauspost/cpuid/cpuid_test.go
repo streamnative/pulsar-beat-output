@@ -114,6 +114,16 @@ func TestAmd3dnowExt(t *testing.T) {
 	t.Log("AMD3DNOWEXT Support:", got)
 }
 
+// TestVMX tests VMX() function
+func TestVMX(t *testing.T) {
+	got := CPU.VMX()
+	expected := CPU.Features&VMX == VMX
+	if got != expected {
+		t.Fatalf("VMX: expected %v, got %v", expected, got)
+	}
+	t.Log("VMX Support:", got)
+}
+
 // TestMMX tests MMX() function
 func TestMMX(t *testing.T) {
 	got := CPU.MMX()
@@ -597,6 +607,16 @@ func TestAMD(t *testing.T) {
 		t.Fatalf("TestAMD: expected %v, got %v", expected, got)
 	}
 	t.Log("TestAMD:", got)
+}
+
+// Hygon returns true if vendor is recognized as Hygon
+func TestHygon(t *testing.T) {
+	got := CPU.Hygon()
+	expected := CPU.VendorID == Hygon
+	if got != expected {
+		t.Fatalf("TestHygon: expected %v, got %v", expected, got)
+	}
+	t.Log("TestHygon:", got)
 }
 
 // Transmeta returns true if vendor is recognized as Transmeta

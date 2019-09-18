@@ -41,6 +41,7 @@
         Can be one or multiple IPv4 or IPv6 addresses.
 
     - name: port
+      format: string
       level: core
       type: long
       description: >
@@ -58,6 +59,20 @@
       description: >
         Server domain.
 
+    - name: registered_domain
+      level: extended
+      type: keyword
+      short: The highest registered server domain, stripped of the subdomain.
+      description: >
+        The highest registered server domain, stripped of the subdomain.
+
+        For example, the registered domain for "foo.google.com" is "google.com".
+
+        This value can be determined precisely with a list like the public
+        suffix list (http://publicsuffix.org). Trying to approximate this by
+        simply taking the last two labels will not work well for TLDs such as "co.uk".
+      example: google.com
+
     # Metrics
     - name: bytes
       format: bytes
@@ -73,3 +88,22 @@
       example: 12
       description: >
         Packets sent from the server to the client.
+
+    - name: nat.ip
+      level: extended
+      type: ip
+      short: Server NAT ip
+      description: >
+        Translated ip of destination based NAT sessions (e.g. internet to private DMZ)
+
+        Typically used with load balancers, firewalls, or routers.
+
+    - name: nat.port
+      format: string
+      level: extended
+      type: long
+      short: Server NAT port
+      description: >
+        Translated port of destination based NAT sessions (e.g. internet to private DMZ)
+
+        Typically used with load balancers, firewalls, or routers.

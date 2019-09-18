@@ -60,6 +60,9 @@
 .PARAMETER TestUnit
      Runs unit tests.
 
+.PARAMETER TestIntegration
+     Runs integration tests.
+
 .PARAMETER All
      Runs everything this script knows about that can run in a container.
 
@@ -84,6 +87,7 @@ param(
     [Parameter(Mandatory=$False)][switch]$PkgImports,
     [Parameter(Mandatory=$False)][switch]$GoFormat,
     [Parameter(Mandatory=$False)][switch]$TestUnit,
+    [Parameter(Mandatory=$False)][switch]$TestIntegration,
     [Parameter(Mandatory=$False)][switch]$All
 )
 
@@ -130,7 +134,7 @@ Function Check-InContainer() {
 # outside of a container where it may be out of date with master.
 Function Verify-GoVersion() {
     Try {
-        $goVersionDockerfile=(Select-String -Path ".\Dockerfile" -Pattern "^FROM golang:").ToString().Split(" ")[1].SubString(7) -replace '\.0$',''
+        $goVersionDockerfile=(Select-String -Path ".\Dockerfile" -Pattern "^ARG[\s]+GO_VERSION=(.*)$").Matches.groups[1].Value.TrimEnd(".0")
         $goVersionInstalled=(go version).ToString().Split(" ")[2].SubString(2)
     }
     Catch [Exception] {
@@ -320,6 +324,37 @@ Function Run-UnitTests() {
     if ($LASTEXITCODE -ne 0) { Throw "Unit tests failed" }
 }
 
+# Run the integration tests
+Function Run-IntegrationTests() {
+    $env:DOCKER_INTEGRATION_DAEMON_DEST = $root + "\bundles\tmp"
+    $dirs = go list -test -f '{{- if ne .ForTest `"`" -}}{{- .Dir -}}{{- end -}}' .\integration\...
+    $integration_api_dirs = @()
+    ForEach($dir in $dirs) {
+        $integration_api_dirs += $dir
+        Write-Host "Building test suite binary $dir"
+        go test -c -o "$dir\test.exe" $dir
+    }
+
+    ForEach($dir in $integration_api_dirs) {
+        Set-Location $dir
+        Write-Host "Running $($PWD.Path)"
+        $pinfo = New-Object System.Diagnostics.ProcessStartInfo
+        $pinfo.FileName = "$($PWD.Path)\test.exe"
+        $pinfo.WorkingDirectory = "$($PWD.Path)"
+        $pinfo.RedirectStandardError = $true
+        $pinfo.UseShellExecute = $false
+        $pinfo.Arguments = $env:INTEGRATION_TESTFLAGS
+        $p = New-Object System.Diagnostics.Process
+        $p.StartInfo = $pinfo
+        $p.Start() | Out-Null
+        $p.WaitForExit()
+        $err = $p.StandardError.ReadToEnd()
+        if (($LASTEXITCODE -ne 0) -and ($err -notlike "*warning: no tests to run*")) {
+            Throw "Integration tests failed: $err"
+        }
+    }
+}
+
 # Start of main code.
 Try {
     Write-Host -ForegroundColor Cyan "INFO: make.ps1 starting at $(Get-Date)"
@@ -331,13 +366,13 @@ Try {
     # Handle the "-All" shortcut to turn on all things we can handle.
     # Note we expressly only include the items which can run in a container - the validations tests cannot
     # as they require the .git directory which is excluded from the image by .dockerignore
-    if ($All) { $Client=$True; $Daemon=$True; $TestUnit=$True }
+    if ($All) { $Client=$True; $Daemon=$True; $TestUnit=$True; }
 
     # Handle the "-Binary" shortcut to build both client and daemon.
     if ($Binary) { $Client = $True; $Daemon = $True }
 
     # Default to building the daemon if not asked for anything explicitly.
-    if (-not($Client) -and -not($Daemon) -and -not($DCO) -and -not($PkgImports) -and -not($GoFormat) -and -not($TestUnit)) { $Daemon=$True }
+    if (-not($Client) -and -not($Daemon) -and -not($DCO) -and -not($PkgImports) -and -not($GoFormat) -and -not($TestUnit) -and -not($TestIntegration)) { $Daemon=$True }
 
     # Verify git is installed
     if ($(Get-Command git -ErrorAction SilentlyContinue) -eq $nil) { Throw "Git does not appear to be installed" }
@@ -351,6 +386,8 @@ Try {
 
     # Get the version of docker (eg 17.04.0-dev)
     $dockerVersion="0.0.0-dev"
+    # Overwrite dockerVersion if VERSION Environment variable is available
+    if (Test-Path Env:\VERSION) { $dockerVersion=$env:VERSION }
 
     # Give a warning if we are not running in a container and are building binaries or running unit tests.
     # Not relevant for validation tests as these are fine to run outside of a container.
@@ -422,6 +459,9 @@ Try {
 
     # Run unit tests
     if ($TestUnit) { Run-UnitTests }
+
+    # Run integration tests
+    if ($TestIntegration) { Run-IntegrationTests }
 
     # Gratuitous ASCII art.
     if ($Daemon -or $Client) {

@@ -50,11 +50,19 @@ DOCKER_ENVS := \
 	-e DOCKER_PORT \
 	-e DOCKER_REMAP_ROOT \
 	-e DOCKER_STORAGE_OPTS \
+	-e DOCKER_TEST_HOST \
 	-e DOCKER_USERLANDPROXY \
 	-e DOCKERD_ARGS \
+	-e TEST_INTEGRATION_DEST \
 	-e TEST_INTEGRATION_DIR \
+	-e TEST_SKIP_INTEGRATION \
+	-e TEST_SKIP_INTEGRATION_CLI \
+	-e TESTDEBUG \
 	-e TESTDIRS \
 	-e TESTFLAGS \
+	-e TESTFLAGS_INTEGRATION \
+	-e TESTFLAGS_INTEGRATION_CLI \
+	-e TEST_FILTER \
 	-e TIMEOUT \
 	-e VALIDATE_REPO \
 	-e VALIDATE_BRANCH \
@@ -79,6 +87,7 @@ BIND_DIR := $(if $(BINDDIR),$(BINDDIR),$(if $(DOCKER_HOST),,bundles))
 # DOCKER_MOUNT can be overriden, but use at your own risk!
 ifndef DOCKER_MOUNT
 DOCKER_MOUNT := $(if $(BIND_DIR),-v "$(CURDIR)/$(BIND_DIR):/go/src/github.com/docker/docker/$(BIND_DIR)")
+DOCKER_MOUNT := $(if $(DOCKER_BINDDIR_MOUNT_OPTS),$(DOCKER_MOUNT):$(DOCKER_BINDDIR_MOUNT_OPTS),$(DOCKER_MOUNT))
 
 # This allows the test suite to be able to run without worrying about the underlying fs used by the container running the daemon (e.g. aufs-on-aufs), so long as the host running the container is running a supported fs.
 # The volume will be cleaned up when the container is removed due to `--rm`.
@@ -104,9 +113,6 @@ BUILD_APT_MIRROR := $(if $(DOCKER_BUILD_APT_MIRROR),--build-arg APT_MIRROR=$(DOC
 export BUILD_APT_MIRROR
 
 SWAGGER_DOCS_PORT ?= 9000
-
-INTEGRATION_CLI_MASTER_IMAGE := $(if $(INTEGRATION_CLI_MASTER_IMAGE), $(INTEGRATION_CLI_MASTER_IMAGE), integration-cli-master)
-INTEGRATION_CLI_WORKER_IMAGE := $(if $(INTEGRATION_CLI_WORKER_IMAGE), $(INTEGRATION_CLI_WORKER_IMAGE), integration-cli-worker)
 
 define \n
 
@@ -150,7 +156,7 @@ build: DOCKER_BUILD_ARGS += --build-arg=CROSS=$(DOCKER_CROSS)
 build: DOCKER_BUILDKIT ?= 1
 build: bundles
 	$(warning The docker client CLI has moved to github.com/docker/cli. For a dev-test cycle involving the CLI, run:${\n} DOCKER_CLI_PATH=/host/path/to/cli/binary make shell ${\n} then change the cli and compile into a binary at the same location.${\n})
-	DOCKER_BUILDKIT="${DOCKER_BUILDKIT}" docker build ${BUILD_APT_MIRROR} ${DOCKER_BUILD_ARGS} ${DOCKER_BUILD_OPTS} -t "$(DOCKER_IMAGE)" -f "$(DOCKERFILE)" .
+	DOCKER_BUILDKIT="${DOCKER_BUILDKIT}" docker build --build-arg=GO_VERSION ${BUILD_APT_MIRROR} ${DOCKER_BUILD_ARGS} ${DOCKER_BUILD_OPTS} -t "$(DOCKER_IMAGE)" -f "$(DOCKERFILE)" .
 
 bundles:
 	mkdir bundles
@@ -182,8 +188,13 @@ test-docker-py: build ## run the docker-py tests
 
 test-integration-cli: test-integration ## (DEPRECATED) use test-integration
 
+ifneq ($(and $(TEST_SKIP_INTEGRATION),$(TEST_SKIP_INTEGRATION_CLI)),)
+test-integration:
+	@echo Both integrations suites skipped per environment variables
+else
 test-integration: build ## run the integration tests
 	$(DOCKER_RUN_DOCKER) hack/make.sh dynbinary test-integration
+endif
 
 test-integration-flaky: build ## run the stress test for all new integration tests
 	$(DOCKER_RUN_DOCKER) hack/make.sh dynbinary test-integration-flaky
@@ -212,18 +223,3 @@ swagger-docs: ## preview the API documentation
 		-e 'REDOC_OPTIONS=hide-hostname="true" lazy-rendering' \
 		-p $(SWAGGER_DOCS_PORT):80 \
 		bfirsh/redoc:1.6.2
-
-build-integration-cli-on-swarm: build ## build images and binary for running integration-cli on Swarm in parallel
-	@echo "Building hack/integration-cli-on-swarm (if build fails, please refer to hack/integration-cli-on-swarm/README.md)"
-	go build -buildmode=pie -o ./hack/integration-cli-on-swarm/integration-cli-on-swarm ./hack/integration-cli-on-swarm/host
-	@echo "Building $(INTEGRATION_CLI_MASTER_IMAGE)"
-	docker build -t $(INTEGRATION_CLI_MASTER_IMAGE) hack/integration-cli-on-swarm/agent
-	@echo "Building $(INTEGRATION_CLI_WORKER_IMAGE) from $(DOCKER_IMAGE)"
-	$(eval tmp := integration-cli-worker-tmp)
-# We mount pkgcache, but not bundle (bundle needs to be baked into the image)
-# For avoiding bakings DOCKER_GRAPHDRIVER and so on to image, we cannot use $(DOCKER_ENVS) here
-	docker run -t -d --name $(tmp) -e DOCKER_GITCOMMIT -e BUILDFLAGS --privileged $(DOCKER_IMAGE) top
-	docker exec $(tmp) hack/make.sh build-integration-test-binary dynbinary
-	docker exec $(tmp) go build -buildmode=pie -o /worker github.com/docker/docker/hack/integration-cli-on-swarm/agent/worker
-	docker commit -c 'ENTRYPOINT ["/worker"]' $(tmp) $(INTEGRATION_CLI_WORKER_IMAGE)
-	docker rm -f $(tmp)

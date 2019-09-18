@@ -11,6 +11,12 @@ import (
 	"github.com/pierrec/lz4"
 )
 
+const (
+	// Should match values in lz4.go
+	hashLog = 16
+	htSize  = 1 << hashLog
+)
+
 type testcase struct {
 	file         string
 	compressible bool
@@ -19,11 +25,11 @@ type testcase struct {
 
 var rawFiles = []testcase{
 	// {"testdata/207326ba-36f8-11e7-954a-aca46ba8ca73.png", true, nil},
-	{"testdata/e.txt", true, nil},
+	{"testdata/e.txt", false, nil},
 	{"testdata/gettysburg.txt", true, nil},
 	{"testdata/Mark.Twain-Tom.Sawyer.txt", true, nil},
 	{"testdata/pg1661.txt", true, nil},
-	{"testdata/pi.txt", true, nil},
+	{"testdata/pi.txt", false, nil},
 	{"testdata/random.data", false, nil},
 	{"testdata/repeat.txt", true, nil},
 	{"testdata/pg1661.txt", true, nil},
@@ -98,7 +104,7 @@ func TestCompressUncompressBlock(t *testing.T) {
 			t.Run(tc.file, func(t *testing.T) {
 				// t.Parallel()
 				n = run(t, tc, func(src, dst []byte) (int, error) {
-					var ht [1 << 16]int
+					var ht [htSize]int
 					return lz4.CompressBlock(src, dst, ht[:])
 				})
 			})
@@ -122,10 +128,12 @@ func TestCompressCornerCase_CopyDstUpperBound(t *testing.T) {
 		t.Helper()
 
 		// Compress the data.
-		zbuf := make([]byte, int(float64(len(src))*0.85))
+		// We provide a destination that is too small to trigger an out-of-bounds,
+		// which makes it return the error we want.
+		zbuf := make([]byte, int(float64(len(src))*0.40))
 		_, err := compress(src, zbuf)
 		if err != lz4.ErrInvalidSourceShortBuffer {
-			t.Fatal("err should be ErrInvalidSourceShortBuffer")
+			t.Fatal("err should be ErrInvalidSourceShortBuffer, was", err)
 		}
 	}
 
@@ -138,7 +146,7 @@ func TestCompressCornerCase_CopyDstUpperBound(t *testing.T) {
 	t.Run(file, func(t *testing.T) {
 		t.Parallel()
 		run(src, func(src, dst []byte) (int, error) {
-			var ht [1 << 16]int
+			var ht [htSize]int
 			return lz4.CompressBlock(src, dst, ht[:])
 		})
 	})
@@ -148,4 +156,21 @@ func TestCompressCornerCase_CopyDstUpperBound(t *testing.T) {
 			return lz4.CompressBlockHC(src, dst, -1)
 		})
 	})
+}
+
+func TestIssue23(t *testing.T) {
+	compressBuf := make([]byte, lz4.CompressBlockBound(1<<16))
+	for j := 1; j < 16; j++ {
+		var buf [1 << 16]byte
+		var ht [htSize]int
+
+		for i := 0; i < len(buf); i += j {
+			buf[i] = 1
+		}
+
+		n, _ := lz4.CompressBlock(buf[:], compressBuf, ht[:])
+		if got, want := n, 300; got > want {
+			t.Fatalf("not able to compress repeated data: got %d; want %d", got, want)
+		}
+	}
 }

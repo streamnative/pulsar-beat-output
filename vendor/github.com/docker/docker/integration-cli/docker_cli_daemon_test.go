@@ -24,8 +24,8 @@ import (
 	"time"
 
 	"github.com/cloudflare/cfssl/helpers"
+	"github.com/creack/pty"
 	"github.com/docker/docker/api/types"
-	moby_daemon "github.com/docker/docker/daemon"
 	"github.com/docker/docker/integration-cli/checker"
 	"github.com/docker/docker/integration-cli/cli"
 	"github.com/docker/docker/integration-cli/cli/build"
@@ -35,8 +35,8 @@ import (
 	"github.com/docker/docker/pkg/mount"
 	"github.com/docker/go-units"
 	"github.com/docker/libnetwork/iptables"
+	"github.com/docker/libtrust"
 	"github.com/go-check/check"
-	"github.com/kr/pty"
 	"golang.org/x/sys/unix"
 	"gotest.tools/assert"
 	"gotest.tools/icmd"
@@ -550,6 +550,23 @@ func (s *DockerDaemonSuite) TestDaemonAllocatesListeningPort(c *check.C) {
 	}
 }
 
+func (s *DockerDaemonSuite) TestDaemonKeyGeneration(c *check.C) {
+	// TODO: skip or update for Windows daemon
+	os.Remove("/etc/docker/key.json")
+	s.d.Start(c)
+	s.d.Stop(c)
+
+	k, err := libtrust.LoadKeyFile("/etc/docker/key.json")
+	if err != nil {
+		c.Fatalf("Error opening key file")
+	}
+	kid := k.KeyID()
+	// Test Key ID is a valid fingerprint (e.g. QQXN:JY5W:TBXI:MK3X:GX6P:PD5D:F56N:NHCS:LVRZ:JA46:R24J:XEFF)
+	if len(kid) != 59 {
+		c.Fatalf("Bad key ID: %s", kid)
+	}
+}
+
 // GH#11320 - verify that the daemon exits on failure properly
 // Note that this explicitly tests the conflict of {-b,--bridge} and {--bip} options as the means
 // to get a daemon init failure; no other tests for -b/--bip conflict are therefore required
@@ -808,7 +825,6 @@ func (s *DockerDaemonSuite) TestDaemonDefaultGatewayIPv4ExplicitOutsideContainer
 }
 
 func (s *DockerDaemonSuite) TestDaemonDefaultNetworkInvalidClusterConfig(c *check.C) {
-	testRequires(c, DaemonIsLinux, testEnv.IsLocalDaemon)
 
 	// Start daemon without docker0 bridge
 	defaultNetworkBridge := "docker0"
@@ -949,7 +965,6 @@ func (s *DockerDaemonSuite) TestDaemonLinksIpTablesRulesWhenLinkAndUnlink(c *che
 }
 
 func (s *DockerDaemonSuite) TestDaemonUlimitDefaults(c *check.C) {
-	testRequires(c, DaemonIsLinux)
 
 	s.d.StartWithBusybox(c, "--default-ulimit", "nofile=42:42", "--default-ulimit", "nproc=1024:1024")
 
@@ -1174,6 +1189,59 @@ func (s *DockerDaemonSuite) TestDaemonUnixSockCleanedUp(c *check.C) {
 	}
 }
 
+func (s *DockerDaemonSuite) TestDaemonWithWrongkey(c *check.C) {
+	type Config struct {
+		Crv string `json:"crv"`
+		D   string `json:"d"`
+		Kid string `json:"kid"`
+		Kty string `json:"kty"`
+		X   string `json:"x"`
+		Y   string `json:"y"`
+	}
+
+	os.Remove("/etc/docker/key.json")
+	s.d.Start(c)
+	s.d.Stop(c)
+
+	config := &Config{}
+	bytes, err := ioutil.ReadFile("/etc/docker/key.json")
+	if err != nil {
+		c.Fatalf("Error reading key.json file: %s", err)
+	}
+
+	// byte[] to Data-Struct
+	if err := json.Unmarshal(bytes, &config); err != nil {
+		c.Fatalf("Error Unmarshal: %s", err)
+	}
+
+	//replace config.Kid with the fake value
+	config.Kid = "VSAJ:FUYR:X3H2:B2VZ:KZ6U:CJD5:K7BX:ZXHY:UZXT:P4FT:MJWG:HRJ4"
+
+	// NEW Data-Struct to byte[]
+	newBytes, err := json.Marshal(&config)
+	if err != nil {
+		c.Fatalf("Error Marshal: %s", err)
+	}
+
+	// write back
+	if err := ioutil.WriteFile("/etc/docker/key.json", newBytes, 0400); err != nil {
+		c.Fatalf("Error ioutil.WriteFile: %s", err)
+	}
+
+	defer os.Remove("/etc/docker/key.json")
+
+	if err := s.d.StartWithError(); err == nil {
+		c.Fatalf("It should not be successful to start daemon with wrong key: %v", err)
+	}
+
+	content, err := s.d.ReadLogFile()
+	c.Assert(err, checker.IsNil)
+
+	if !strings.Contains(string(content), "Public Key ID does not match") {
+		c.Fatalf("Missing KeyID message from daemon logs: %s", string(content))
+	}
+}
+
 func (s *DockerDaemonSuite) TestDaemonRestartKillWait(c *check.C) {
 	s.d.StartWithBusybox(c)
 
@@ -1386,7 +1454,7 @@ func (s *DockerDaemonSuite) TestCleanupMountsAfterDaemonAndContainerKill(c *chec
 
 	// kill the container
 	icmd.RunCommand(ctrBinary, "--address", containerdSocket,
-		"--namespace", moby_daemon.ContainersNamespace, "tasks", "kill", id).Assert(c, icmd.Success)
+		"--namespace", d.ContainersNamespace(), "tasks", "kill", id).Assert(c, icmd.Success)
 
 	// restart daemon.
 	d.Restart(c)
@@ -1715,7 +1783,7 @@ func (s *DockerDaemonSuite) TestDaemonNoSpaceLeftOnDeviceError(c *check.C) {
 	dockerCmd(c, "run", "--rm", "-v", testDir+":/test", "busybox", "sh", "-c", "dd of=/test/testfs.img bs=1M seek=3 count=0")
 	icmd.RunCommand("mkfs.ext4", "-F", filepath.Join(testDir, "testfs.img")).Assert(c, icmd.Success)
 
-	dockerCmd(c, "run", "--privileged", "--rm", "-v", testDir+":/test:shared", "busybox", "sh", "-c", "mkdir -p /test/test-mount/vfs && mount -n /test/testfs.img /test/test-mount/vfs")
+	dockerCmd(c, "run", "--privileged", "--rm", "-v", testDir+":/test:shared", "busybox", "sh", "-c", "mkdir -p /test/test-mount/vfs && mount -n -t ext4 /test/testfs.img /test/test-mount/vfs")
 	defer mount.Unmount(filepath.Join(testDir, "test-mount"))
 
 	s.d.Start(c, "--storage-driver", "vfs", "--data-root", filepath.Join(testDir, "test-mount"))
@@ -1906,7 +1974,7 @@ func (s *DockerDaemonSuite) TestDaemonRestartWithKilledRunningContainer(t *check
 
 	// kill the container
 	icmd.RunCommand(ctrBinary, "--address", containerdSocket,
-		"--namespace", moby_daemon.ContainersNamespace, "tasks", "kill", cid).Assert(t, icmd.Success)
+		"--namespace", s.d.ContainersNamespace(), "tasks", "kill", cid).Assert(t, icmd.Success)
 
 	// Give time to containerd to process the command if we don't
 	// the exit event might be received after we do the inspect
@@ -2009,7 +2077,7 @@ func (s *DockerDaemonSuite) TestDaemonRestartWithUnpausedRunningContainer(t *che
 	result := icmd.RunCommand(
 		ctrBinary,
 		"--address", containerdSocket,
-		"--namespace", moby_daemon.ContainersNamespace,
+		"--namespace", s.d.ContainersNamespace(),
 		"tasks", "resume", cid)
 	result.Assert(t, icmd.Success)
 

@@ -20,7 +20,11 @@ package gotype
 import (
 	"bytes"
 	"fmt"
+	"reflect"
+	"strconv"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/elastic/go-structform/json"
 )
@@ -29,6 +33,28 @@ type unfoldCase struct {
 	json  string
 	input interface{}
 	value interface{}
+}
+
+type stateStringUnfolder struct {
+	BaseUnfoldState
+	fn func(string) error
+}
+
+type intFromString int
+
+func (i *intFromString) Expand() UnfoldState {
+	return &stateStringUnfolder{
+		fn: func(str string) error {
+			tmp, err := strconv.Atoi(str)
+			*i = intFromString(tmp)
+			return err
+		},
+	}
+}
+
+func (u *stateStringUnfolder) OnString(ctx UnfoldCtx, in string) error {
+	defer ctx.Done()
+	return u.fn(in)
 }
 
 func TestFoldUnfoldConsistent(t *testing.T) {
@@ -379,4 +405,227 @@ func unfoldSamples() map[string]unfoldCase {
 		m[title] = test
 	}
 	return m
+}
+
+func TestUserUnfold(t *testing.T) {
+	type myint int
+	type addInt struct{ A, B int }
+
+	type complexUnfolder func(*myint, interface{}) error
+	type initUnfolder func(*myint) (interface{}, complexUnfolder)
+
+	unfoldFromString := func(to *myint, in string) error {
+		i, err := strconv.Atoi(in)
+		*to = myint(i)
+		return err
+	}
+
+	unfoldFromBool := func(to *myint, in bool) error {
+		*to = 0
+		if in {
+			*to = 1
+		}
+		return nil
+	}
+
+	makeCellUnfolder := func(cell interface{}, proc func(*myint)) initUnfolder {
+		return func(_ *myint) (interface{}, complexUnfolder) {
+			return cell, func(to *myint, _ interface{}) error {
+				proc(to)
+				return nil
+			}
+		}
+	}
+
+	makeUnfoldWithIntCell := func(extra int) initUnfolder {
+		cell := new(int)
+		return makeCellUnfolder(cell, func(to *myint) {
+			*to = myint(*cell + extra)
+		})
+	}
+
+	makeUnfoldReuseVar := func(extra int) initUnfolder {
+		return func(to *myint) (interface{}, complexUnfolder) {
+			return to, func(to *myint, _ interface{}) error {
+				*to += myint(extra)
+				return nil
+			}
+		}
+	}
+
+	makeUnfoldStructAdd := func() initUnfolder {
+		cell := &addInt{} // prealloc cell for reuse
+		return makeCellUnfolder(cell, func(to *myint) {
+			*to = myint(cell.A + cell.B)
+		})
+	}
+
+	unfoldWithState := func(to *myint) UnfoldState {
+		return &stateStringUnfolder{
+			fn: func(in string) error {
+				i, err := strconv.Atoi(in)
+				*to = myint(i)
+				return err
+			},
+		}
+	}
+
+	tests := map[string]struct {
+		input    interface{}
+		want     interface{}
+		unfolder interface{}
+	}{
+		"parse from string": {
+			input:    "12345",
+			want:     myint(12345),
+			unfolder: unfoldFromString,
+		},
+		"parse from bool": {
+			input:    true,
+			want:     myint(1),
+			unfolder: unfoldFromBool,
+		},
+		"custom post processing with temporary cell": {
+			input:    3,
+			want:     myint(23),
+			unfolder: makeUnfoldWithIntCell(20),
+		},
+		"reuse cell and post process": {
+			input:    13,
+			want:     myint(23),
+			unfolder: makeUnfoldReuseVar(10),
+		},
+		"value from custom structure": {
+			input:    addInt{1, 2},
+			want:     myint(3),
+			unfolder: makeUnfoldStructAdd(),
+		},
+		"expander value": {
+			input: "42",
+			want:  intFromString(42),
+		},
+		"parse with UnfoldState": {
+			input:    "1234",
+			want:     myint(1234),
+			unfolder: unfoldWithState,
+		},
+		"parse array values from strings": {
+			input:    []string{"1", "2", "3"},
+			want:     []myint{1, 2, 3},
+			unfolder: unfoldFromString,
+		},
+		"array with temporary cell": {
+			input:    []int{1, 2, 3},
+			want:     []myint{21, 22, 23},
+			unfolder: makeUnfoldWithIntCell(20),
+		},
+		"array post processing with cell reuse": {
+			input:    []int{1, 2, 3},
+			want:     []myint{11, 12, 13},
+			unfolder: makeUnfoldReuseVar(10),
+		},
+		"array with values from custom structure": {
+			input:    []addInt{{1, 2}, {20, 3}},
+			want:     []myint{3, 23},
+			unfolder: makeUnfoldStructAdd(),
+		},
+		"array with UnfoldState": {
+			input:    []string{"1", "2", "3"},
+			want:     []myint{1, 2, 3},
+			unfolder: unfoldWithState,
+		},
+		"array of expanders": {
+			input: []string{"1", "2", "3"},
+			want:  []intFromString{1, 2, 3},
+		},
+		"parse map values from strings": {
+			input:    map[string]string{"a": "1", "b": "2", "c": "3"},
+			want:     map[string]myint{"a": 1, "b": 2, "c": 3},
+			unfolder: unfoldFromString,
+		},
+		"map with temporary cell": {
+			input:    map[string]int{"a": 1, "b": 2, "c": 3},
+			want:     map[string]myint{"a": 21, "b": 22, "c": 23},
+			unfolder: makeUnfoldWithIntCell(20),
+		},
+		"map post processing with cell reuse": {
+			input:    map[string]int{"a": 1, "b": 2, "c": 3},
+			want:     map[string]myint{"a": 21, "b": 22, "c": 23},
+			unfolder: makeUnfoldReuseVar(20),
+		},
+		"map with values from custom structure": {
+			input:    map[string]addInt{"a": {1, 2}, "b": {20, 3}},
+			want:     map[string]myint{"a": 3, "b": 23},
+			unfolder: makeUnfoldStructAdd(),
+		},
+		"map with UnfoldState": {
+			input:    map[string]string{"a": "1", "b": "2", "c": "3"},
+			want:     map[string]myint{"a": 1, "b": 2, "c": 3},
+			unfolder: unfoldWithState,
+		},
+		"map of expanders": {
+			input: map[string]string{"a": "1", "b": "2", "c": "3"},
+			want:  map[string]intFromString{"a": 1, "b": 2, "c": 3},
+		},
+		"struct field from string": {
+			input:    map[string]string{"a": "1"},
+			want:     struct{ A myint }{1},
+			unfolder: unfoldFromString,
+		},
+		"struct field with temporary cell": {
+			input:    map[string]int{"a": 1},
+			want:     struct{ A myint }{11},
+			unfolder: makeUnfoldWithIntCell(10),
+		},
+		"struct field reuse and post process": {
+			input:    map[string]int{"a": 1},
+			want:     struct{ A myint }{11},
+			unfolder: makeUnfoldReuseVar(10),
+		},
+		"struct field with custom structure": {
+			input:    map[string]addInt{"a": {1, 2}},
+			want:     struct{ A myint }{3},
+			unfolder: makeUnfoldStructAdd(),
+		},
+		"struct with UnfoldState": {
+			input:    map[string]string{"a": "1"},
+			want:     struct{ A myint }{1},
+			unfolder: unfoldWithState,
+		},
+		"struct with expander": {
+			input: map[string]string{"a": "1"},
+			want:  struct{ A intFromString }{1},
+		},
+	}
+
+	for title, test := range tests {
+		t.Run(title, func(t *testing.T) {
+			var cell reflect.Value
+			wantType := reflect.TypeOf(test.want)
+
+			if wantType.Kind() == reflect.Map {
+				tmp := reflect.MakeMap(wantType)
+				cell = reflect.New(wantType)
+				cell.Elem().Set(tmp)
+			} else {
+				cell = reflect.New(wantType)
+			}
+
+			u, err := NewUnfolder(cell.Interface(), Unfolders(test.unfolder))
+			if err != nil {
+				t.Fatalf("NewUnfolder failed with: %v", err)
+			}
+
+			gcCheck := newGCCheckVisitor(u)
+			if err := Fold(test.input, gcCheck); err != nil {
+				t.Fatalf("Fold-Unfold failed with: %v", err)
+			}
+
+			if st := &u.unfolder; len(st.stack) > 0 {
+				t.Fatalf("Unfolder state stack not empty: %v, %v", st.stack, st.current)
+			}
+
+			assert.Equal(t, test.want, cell.Elem().Interface())
+		})
+	}
 }

@@ -24,19 +24,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/protobuf/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/balancer"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/grpclog"
-	"google.golang.org/grpc/internal/balancerload/orca"
-	orcapb "google.golang.org/grpc/internal/balancerload/orca/orca_v1"
+	"google.golang.org/grpc/internal/balancerload"
+	"google.golang.org/grpc/internal/testutils"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/resolver"
+	"google.golang.org/grpc/resolver/manual"
 	testpb "google.golang.org/grpc/test/grpc_testing"
 	"google.golang.org/grpc/testdata"
-
-	_ "google.golang.org/grpc/internal/balancerload/orca"
 )
 
 const testBalancerName = "testbalancer"
@@ -165,14 +164,14 @@ func testDoneInfo(t *testing.T, e env) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	wantErr := detailedError
-	if _, err := tc.EmptyCall(ctx, &testpb.Empty{}); !reflect.DeepEqual(err, wantErr) {
+	if _, err := tc.EmptyCall(ctx, &testpb.Empty{}); !testutils.StatusErrEqual(err, wantErr) {
 		t.Fatalf("TestService/EmptyCall(_, _) = _, %v, want _, %v", err, wantErr)
 	}
 	if _, err := tc.UnaryCall(ctx, &testpb.SimpleRequest{}); err != nil {
 		t.Fatalf("TestService.UnaryCall(%v, _, _, _) = _, %v; want _, <nil>", ctx, err)
 	}
 
-	if len(b.doneInfo) < 1 || !reflect.DeepEqual(b.doneInfo[0].Err, wantErr) {
+	if len(b.doneInfo) < 1 || !testutils.StatusErrEqual(b.doneInfo[0].Err, wantErr) {
 		t.Fatalf("b.doneInfo = %v; want b.doneInfo[0].Err = %v", b.doneInfo, wantErr)
 	}
 	if len(b.doneInfo) < 2 || !reflect.DeepEqual(b.doneInfo[1].Trailer, testTrailerMetadata) {
@@ -200,6 +199,22 @@ func testDoneInfo(t *testing.T, e env) {
 	}
 }
 
+const loadMDKey = "X-Endpoint-Load-Metrics-Bin"
+
+type testLoadParser struct{}
+
+func (*testLoadParser) Parse(md metadata.MD) interface{} {
+	vs := md.Get(loadMDKey)
+	if len(vs) == 0 {
+		return nil
+	}
+	return vs[0]
+}
+
+func init() {
+	balancerload.SetParser(&testLoadParser{})
+}
+
 func (s) TestDoneLoads(t *testing.T) {
 	for _, e := range listTestEnv() {
 		testDoneLoads(t, e)
@@ -210,17 +225,11 @@ func testDoneLoads(t *testing.T, e env) {
 	b := &testBalancer{}
 	balancer.Register(b)
 
-	testLoad := &orcapb.LoadReport{
-		CpuUtilization:           0.31,
-		MemUtilization:           0.41,
-		NicInUtilization:         0.59,
-		NicOutUtilization:        0.26,
-		RequestCostOrUtilization: nil,
-	}
+	const testLoad = "test-load-,-should-be-orca"
 
 	ss := &stubServer{
 		emptyCall: func(ctx context.Context, in *testpb.Empty) (*testpb.Empty, error) {
-			grpc.SetTrailer(ctx, orca.ToMetadata(testLoad))
+			grpc.SetTrailer(ctx, metadata.Pairs(loadMDKey, testLoad))
 			return &testpb.Empty{}, nil
 		},
 	}
@@ -247,8 +256,92 @@ func testDoneLoads(t *testing.T, e env) {
 	if len(b.doneInfo) < 1 {
 		t.Fatalf("b.doneInfo = %v, want length 1", b.doneInfo)
 	}
-	gotLoad, _ := b.doneInfo[0].ServerLoad.(*orcapb.LoadReport)
-	if !proto.Equal(gotLoad, testLoad) {
+	gotLoad, _ := b.doneInfo[0].ServerLoad.(string)
+	if gotLoad != testLoad {
 		t.Fatalf("b.doneInfo[0].ServerLoad = %v; want = %v", b.doneInfo[0].ServerLoad, testLoad)
+	}
+}
+
+const testBalancerKeepAddressesName = "testbalancer-keepingaddresses"
+
+// testBalancerKeepAddresses keeps the addresses in the builder instead of
+// creating SubConns.
+//
+// It's used to test the addresses balancer gets are correct.
+type testBalancerKeepAddresses struct {
+	addrsChan chan []resolver.Address
+}
+
+func newTestBalancerKeepAddresses() *testBalancerKeepAddresses {
+	return &testBalancerKeepAddresses{
+		addrsChan: make(chan []resolver.Address, 10),
+	}
+}
+
+func (b *testBalancerKeepAddresses) Build(cc balancer.ClientConn, opt balancer.BuildOptions) balancer.Balancer {
+	return b
+}
+
+func (*testBalancerKeepAddresses) Name() string {
+	return testBalancerKeepAddressesName
+}
+
+func (b *testBalancerKeepAddresses) HandleResolvedAddrs(addrs []resolver.Address, err error) {
+	b.addrsChan <- addrs
+}
+
+func (testBalancerKeepAddresses) HandleSubConnStateChange(sc balancer.SubConn, s connectivity.State) {
+	panic("not used")
+}
+
+func (testBalancerKeepAddresses) Close() {
+}
+
+// Make sure that non-grpclb balancers don't get grpclb addresses even if name
+// resolver sends them
+func (s) TestNonGRPCLBBalancerGetsNoGRPCLBAddress(t *testing.T) {
+	r, rcleanup := manual.GenerateAndRegisterManualResolver()
+	defer rcleanup()
+
+	b := newTestBalancerKeepAddresses()
+	balancer.Register(b)
+
+	cc, err := grpc.Dial(r.Scheme()+":///test.server", grpc.WithInsecure(),
+		grpc.WithBalancerName(b.Name()))
+	if err != nil {
+		t.Fatalf("failed to dial: %v", err)
+	}
+	defer cc.Close()
+
+	grpclbAddresses := []resolver.Address{{
+		Addr:       "grpc.lb.com",
+		Type:       resolver.GRPCLB,
+		ServerName: "grpc.lb.com",
+	}}
+
+	nonGRPCLBAddresses := []resolver.Address{{
+		Addr: "localhost",
+		Type: resolver.Backend,
+	}}
+
+	r.UpdateState(resolver.State{
+		Addresses: nonGRPCLBAddresses,
+	})
+	if got := <-b.addrsChan; !reflect.DeepEqual(got, nonGRPCLBAddresses) {
+		t.Fatalf("With only backend addresses, balancer got addresses %v, want %v", got, nonGRPCLBAddresses)
+	}
+
+	r.UpdateState(resolver.State{
+		Addresses: grpclbAddresses,
+	})
+	if got := <-b.addrsChan; len(got) != 0 {
+		t.Fatalf("With only grpclb addresses, balancer got addresses %v, want empty", got)
+	}
+
+	r.UpdateState(resolver.State{
+		Addresses: append(grpclbAddresses, nonGRPCLBAddresses...),
+	})
+	if got := <-b.addrsChan; !reflect.DeepEqual(got, nonGRPCLBAddresses) {
+		t.Fatalf("With both backend and grpclb addresses, balancer got addresses %v, want %v", got, nonGRPCLBAddresses)
 	}
 }

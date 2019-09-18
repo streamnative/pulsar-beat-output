@@ -136,7 +136,7 @@ func (container *Container) CopyImagePathContent(v volume.Volume, destination st
 		return err
 	}
 
-	id := stringid.GenerateNonCryptoID()
+	id := stringid.GenerateRandomID()
 	path, err := v.Mount(id)
 	if err != nil {
 		return err
@@ -190,7 +190,7 @@ func (container *Container) UnmountIpcMount() error {
 	if shmPath == "" {
 		return nil
 	}
-	if err = mount.Unmount(shmPath); err != nil && !os.IsNotExist(err) {
+	if err = mount.Unmount(shmPath); err != nil && !os.IsNotExist(errors.Cause(err)) {
 		return err
 	}
 	return nil
