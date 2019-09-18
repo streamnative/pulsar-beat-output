@@ -23,7 +23,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/apache/pulsar/pulsar-client-go/pulsar"
+	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/elastic/beats/libbeat/outputs/codec"
 )
 
@@ -51,7 +51,6 @@ type pulsarConfig struct {
 	MaxPendingMessages                 int                       `config:"max_pending_messages"`
 	MaxPendingMessagesAcrossPartitions int                       `config:"max_pending_messages_accross_partitions"`
 	BlockIfQueueFull                   bool                      `config:"block_if_queue_full"`
-	MessageRoutingMode                 pulsar.MessageRoutingMode `config:"message_routing_mode"`
 	HashingScheme                      pulsar.HashingScheme      `config:"hashing_schema"`
 	CompressionType                    pulsar.CompressionType    `config:"compression_type"`
 	Batching                           bool                      `config:"batching"`
@@ -101,7 +100,6 @@ func initOptions(
 	config.Validate()
 	clientOptions := pulsar.ClientOptions{
 		URL:       config.URL,
-		IOThreads: config.IOThreads,
 	}
 	if config.UseTLS {
 		clientOptions.TLSTrustCertsFilePath = config.TLSTrustCertsFilePath
@@ -109,24 +107,25 @@ func initOptions(
 			clientOptions.Authentication = pulsar.NewAuthenticationTLS(config.CertificatePath, config.PrivateKeyPath)
 		}
 	}
-	if config.IOThreads > 0 {
-		clientOptions.IOThreads = config.IOThreads
-	}
-	if config.OperationTimeoutSeconds > 0 {
-		clientOptions.OperationTimeoutSeconds = config.OperationTimeoutSeconds * time.Second
-	}
-	if config.MessageListenerThreads > 0 {
-		clientOptions.MessageListenerThreads = config.MessageListenerThreads
-	}
-	if config.ConcurrentLookupRequests > 0 {
-		clientOptions.ConcurrentLookupRequests = config.ConcurrentLookupRequests
-	}
-	if config.TLSAllowInsecureConnection {
-		clientOptions.TLSAllowInsecureConnection = config.TLSAllowInsecureConnection
-	}
-	if config.StatsIntervalInSeconds > 0 {
-		clientOptions.StatsIntervalInSeconds = config.StatsIntervalInSeconds
-	}
+	// The client has not added these options yet.
+	// if config.IOThreads > 0 {
+	// 	clientOptions.IOThreads = config.IOThreads
+	// }
+	// if config.OperationTimeoutSeconds > 0 {
+	// 	clientOptions.OperationTimeoutSeconds = config.OperationTimeoutSeconds * time.Second
+	// }
+	// if config.MessageListenerThreads > 0 {
+	// 	clientOptions.MessageListenerThreads = config.MessageListenerThreads
+	// }
+	// if config.ConcurrentLookupRequests > 0 {
+	// 	clientOptions.ConcurrentLookupRequests = config.ConcurrentLookupRequests
+	// }
+	// if config.TLSAllowInsecureConnection {
+	// 	clientOptions.TLSAllowInsecureConnection = config.TLSAllowInsecureConnection
+	// }
+	// if config.StatsIntervalInSeconds > 0 {
+	// 	clientOptions.StatsIntervalInSeconds = config.StatsIntervalInSeconds
+	// }
 	producerOptions := pulsar.ProducerOptions{
 		Topic: config.Topic,
 	}
@@ -148,18 +147,16 @@ func initOptions(
 	if config.BlockIfQueueFull {
 		producerOptions.BlockIfQueueFull = config.BlockIfQueueFull
 	}
-	if config.MessageRoutingMode > 0 {
-		producerOptions.MessageRoutingMode = config.MessageRoutingMode
-	}
 	if config.HashingScheme > 0 {
 		producerOptions.HashingScheme = config.HashingScheme
 	}
 	if config.CompressionType > 0 {
 		producerOptions.CompressionType = config.CompressionType
 	}
-	if config.Batching {
-		producerOptions.Batching = config.Batching
-	}
+	// The producer has not added these options yet.
+	// if config.Batching {
+	// 	producerOptions.Batching = config.Batching
+	// }
 	if config.BatchingMaxPublishDelay > 0 {
 		producerOptions.BatchingMaxPublishDelay = config.BatchingMaxPublishDelay * time.Second
 	}

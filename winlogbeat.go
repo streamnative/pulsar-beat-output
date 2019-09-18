@@ -17,16 +17,16 @@
  * under the License.
  */
 
- package main
+package main
 
- import (
-		 "os"
-		 _ "github.com/streamnative/pulsar-beat-output/pulsar"
-		 "github.com/elastic/beats/x-pack/winlogbeat/cmd"
- )
- 
- func main() {
-		 if err := cmd.RootCmd.Execute(); err != nil {
-				 os.Exit(1)
-		 }
- }
+import (
+	"os"
+	_ "github.com/streamnative/pulsar-beat-output/pulsar"
+	"github.com/elastic/beats/x-pack/winlogbeat/cmd"
+)
+
+func main() {
+	if err := cmd.RootCmd.Execute(); err != nil {
+		os.Exit(1)
+	}
+}
