@@ -347,9 +347,9 @@ func (p *partitionProducer) internalSendAsync(ctx context.Context, msg *Producer
 }
 
 func (p *partitionProducer) ReceivedSendReceipt(response *pb.CommandSendReceipt) {
-	pi := p.pendingQueue.Peek().(*pendingItem)
+	pi, ok := p.pendingQueue.Peek().(*pendingItem)
 
-	if pi == nil {
+	if !ok || pi == nil {
 		p.log.Warnf("Received ack for %v although the pending queue is empty", response.GetMessageId())
 		return
 	} else if pi.sequenceID != response.GetSequenceId() {
