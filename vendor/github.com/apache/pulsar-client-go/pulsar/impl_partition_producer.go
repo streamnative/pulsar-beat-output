@@ -288,17 +288,17 @@ func (p *partitionProducer) internalFlushCurrentBatch() {
 func (p *partitionProducer) internalFlush(fr *flushRequest) {
 	p.internalFlushCurrentBatch()
 
-	if util.IsNil(p.pendingQueue.PeekLast()) {
-		return
+	pi, ok := p.pendingQueue.PeekLast().(*pendingItem)
+
+	if ok {
+		pi.sendRequests = append(pi.sendRequests, &sendRequest{
+			msg: nil,
+			callback: func(id MessageID, message *ProducerMessage, e error) {
+				fr.err = e
+				fr.waitGroup.Done()
+			},
+		})
 	}
-	pi := p.pendingQueue.PeekLast().(*pendingItem)
-	pi.sendRequests = append(pi.sendRequests, &sendRequest{
-		msg: nil,
-		callback: func(id MessageID, message *ProducerMessage, e error) {
-			fr.err = e
-			fr.waitGroup.Done()
-		},
-	})
 }
 
 func (p *partitionProducer) Send(ctx context.Context, msg *ProducerMessage) error {
