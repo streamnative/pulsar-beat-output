@@ -111,7 +111,7 @@ func (c *client) Publish(batch publisher.Batch) error {
 			logp.Err("produce send failed: %v", err)
 		}
 	}
-	batch.ACK()
+	c.observer.Dropped(dropped)
 	c.observer.Acked(len(events) - dropped)
 	logp.Debug("pulsar", "Pulsar success send events: %d", len(events))
 	return nil
