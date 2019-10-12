@@ -91,20 +91,29 @@ func (c *client) Publish(batch publisher.Batch) error {
 	defer batch.ACK()
 	events := batch.Events()
 	c.observer.NewBatch(len(events))
+	dropped := 0
+	logp.Debug("pulsar", "Pulsar received events: %d", len(events))
 	for i := range events {
 		event := &events[i]
 		serializedEvent, err := c.codec.Encode(c.beat.Beat, &event.Content)
 		if err != nil {
-			logp.Debug("pulsar", "Failed event: %v, error: %v", event, err)
+			dropped++
+			logp.Err("Failed event: %v, error: %v", event, err)
 		}
 
+		logp.Debug("pulsar", "Pulsar success encode events: %d", i)
 		err = c.producer.Send(context.Background(), &pulsar.ProducerMessage{
 			Payload: []byte(serializedEvent),
 		})
+		logp.Debug("pulsar", "Pulsar success send events: %d", i)
 		if err != nil {
-			logp.Debug("pulsar", "produce send failed: %v", err)
+			dropped++
+			logp.Err("produce send failed: %v", err)
 		}
 	}
+	batch.ACK()
+	c.observer.Acked(len(events) - dropped)
+	logp.Debug("pulsar", "Pulsar success send events: %d", len(events))
 	return nil
 }
 
