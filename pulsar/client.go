@@ -102,14 +102,15 @@ func (c *client) Publish(batch publisher.Batch) error {
 		}
 
 		logp.Debug("pulsar", "Pulsar success encode events: %d", i)
-		err = c.producer.Send(context.Background(), &pulsar.ProducerMessage{
+		c.producer.SendAsync(context.Background(), &pulsar.ProducerMessage{
 			Payload: []byte(serializedEvent),
+		}, func(msgID pulsar.MessageID, message *pulsar.ProducerMessage, e error) {
+			if e != nil {
+				dropped++
+				logp.Err("produce send failed: %v", err)
+			}
 		})
 		logp.Debug("pulsar", "Pulsar success send events: %d", i)
-		if err != nil {
-			dropped++
-			logp.Err("produce send failed: %v", err)
-		}
 	}
 	c.observer.Dropped(dropped)
 	c.observer.Acked(len(events) - dropped)

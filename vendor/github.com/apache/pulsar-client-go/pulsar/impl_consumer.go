@@ -1,4 +1,3 @@
-//
 // Licensed to the Apache Software Foundation (ASF) under one
 // or more contributor license agreements.  See the NOTICE file
 // distributed with this work for additional information
@@ -15,7 +14,6 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
-//
 
 package pulsar
 
@@ -100,10 +98,12 @@ func singleTopicSubscribe(client *client, options *ConsumerOptions, topic string
 	ch := make(chan ConsumerError, numPartitions)
 
 	for partitionIdx, partitionTopic := range partitions {
+		// this needs to be created outside in the same go routine since
+		// newPartitionConsumer can modify the shared options struct causing a race condition
+		cons, err := newPartitionConsumer(client, partitionTopic, options, partitionIdx, numPartitions, c.queue)
 		go func(partitionIdx int, partitionTopic string) {
-			cons, e := newPartitionConsumer(client, partitionTopic, options, partitionIdx, numPartitions, c.queue)
 			ch <- ConsumerError{
-				err:       e,
+				err:       err,
 				partition: partitionIdx,
 				cons:      cons,
 			}
@@ -143,8 +143,8 @@ func (c *consumer) Subscription() string {
 
 func (c *consumer) Unsubscribe() error {
 	var errMsg string
-	for _, c := range c.consumers {
-		if err := c.Unsubscribe(); err != nil {
+	for _, consumer := range c.consumers {
+		if err := consumer.Unsubscribe(); err != nil {
 			errMsg += fmt.Sprintf("topic %s, subscription %s: %s", c.Topic(), c.Subscription(), err)
 		}
 	}
@@ -287,4 +287,30 @@ func (c *consumer) RedeliverUnackedMessages() error {
 		return errors.New(errMsg)
 	}
 	return nil
+}
+
+func toProtoSubType(st SubscriptionType) pb.CommandSubscribe_SubType {
+	switch st {
+	case Exclusive:
+		return pb.CommandSubscribe_Exclusive
+	case Shared:
+		return pb.CommandSubscribe_Shared
+	case Failover:
+		return pb.CommandSubscribe_Failover
+	case KeyShared:
+		return pb.CommandSubscribe_Key_Shared
+	}
+
+	return pb.CommandSubscribe_Exclusive
+}
+
+func toProtoInitialPosition(p InitialPosition) pb.CommandSubscribe_InitialPosition {
+	switch p {
+	case Latest:
+		return pb.CommandSubscribe_Latest
+	case Earliest:
+		return pb.CommandSubscribe_Earliest
+	}
+
+	return pb.CommandSubscribe_Latest
 }

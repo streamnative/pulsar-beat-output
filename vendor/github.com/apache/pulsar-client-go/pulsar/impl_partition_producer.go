@@ -23,12 +23,13 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/apache/pulsar-client-go/pkg/pb"
-	"github.com/apache/pulsar-client-go/pulsar/internal"
-	"github.com/apache/pulsar-client-go/util"
 	"github.com/golang/protobuf/proto"
 
 	log "github.com/sirupsen/logrus"
+
+	"github.com/apache/pulsar-client-go/pkg/pb"
+	"github.com/apache/pulsar-client-go/pulsar/internal"
+	"github.com/apache/pulsar-client-go/util"
 )
 
 type producerState int
@@ -175,6 +176,8 @@ func (p *partitionProducer) ConnectionClosed() {
 func (p *partitionProducer) reconnectToBroker() {
 	p.log.Info("Reconnecting to broker")
 	backoff := internal.Backoff{}
+	// Delay three second, fix topic temporarily unavailable
+	time.Sleep(1 * time.Second)
 	for {
 		if p.state != producerReady {
 			// Producer is already closing
@@ -246,7 +249,12 @@ func (p *partitionProducer) internalSend(request *sendRequest) {
 		smm.Properties = internal.ConvertFromStringMap(msg.Properties)
 	}
 
-	sequenceID := internal.GetAndAdd(p.sequenceIDGenerator, 1)
+	var sequenceID uint64
+	if msg.SequenceID != nil {
+		sequenceID = uint64(*msg.SequenceID)
+	} else {
+		sequenceID = internal.GetAndAdd(p.sequenceIDGenerator, 1)
+	}
 
 	if sendAsBatch {
 		ok := p.batchBuilder.Add(smm, sequenceID, msg.Payload, request, msg.ReplicationClusters)
@@ -266,6 +274,7 @@ func (p *partitionProducer) internalSend(request *sendRequest) {
 }
 
 type pendingItem struct {
+	sync.Mutex
 	batchData    []byte
 	sequenceID   uint64
 	sendRequests []interface{}
@@ -289,16 +298,24 @@ func (p *partitionProducer) internalFlush(fr *flushRequest) {
 	p.internalFlushCurrentBatch()
 
 	pi, ok := p.pendingQueue.PeekLast().(*pendingItem)
-
-	if ok {
-		pi.sendRequests = append(pi.sendRequests, &sendRequest{
-			msg: nil,
-			callback: func(id MessageID, message *ProducerMessage, e error) {
-				fr.err = e
-				fr.waitGroup.Done()
-			},
-		})
+	if !ok {
+		fr.waitGroup.Done()
+		return
 	}
+
+	sendReq := &sendRequest{
+		msg: nil,
+		callback: func(id MessageID, message *ProducerMessage, e error) {
+			fr.err = e
+			fr.waitGroup.Done()
+		},
+	}
+
+	// lock the pending request while adding requests
+	// since the ReceivedSendReceipt func iterates over this list
+	pi.Lock()
+	pi.sendRequests = append(pi.sendRequests, sendReq)
+	pi.Unlock()
 }
 
 func (p *partitionProducer) Send(ctx context.Context, msg *ProducerMessage) error {
@@ -349,10 +366,12 @@ func (p *partitionProducer) internalSendAsync(ctx context.Context, msg *Producer
 func (p *partitionProducer) ReceivedSendReceipt(response *pb.CommandSendReceipt) {
 	pi, ok := p.pendingQueue.Peek().(*pendingItem)
 
-	if !ok || pi == nil {
+	if !ok {
 		p.log.Warnf("Received ack for %v although the pending queue is empty", response.GetMessageId())
 		return
-	} else if pi.sequenceID != response.GetSequenceId() {
+	}
+
+	if pi.sequenceID != response.GetSequenceId() {
 		p.log.Warnf("Received ack for %v on sequenceId %v - expected: %v", response.GetMessageId(),
 			response.GetSequenceId(), pi.sequenceID)
 		return
@@ -360,6 +379,10 @@ func (p *partitionProducer) ReceivedSendReceipt(response *pb.CommandSendReceipt)
 
 	// The ack was indeed for the expected item in the queue, we can remove it and trigger the callback
 	p.pendingQueue.Poll()
+
+	// lock the pending item while sending the requests
+	pi.Lock()
+	defer pi.Unlock()
 	for idx, i := range pi.sendRequests {
 		sr := i.(*sendRequest)
 		if sr.msg != nil {
