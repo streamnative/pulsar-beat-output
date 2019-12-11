@@ -144,7 +144,7 @@ Now you can see the information collected from filebeat.
 |send_timeout| Set the send timeout |30s|
 |block_if_queue_full| Set whether the send and sendAsync operations should block when the outgoing message queue is full. |false|
 |batching_max_messages| maximum number of messages in a batch |1000|
-|batching_max_publish_delay| the batch delay |1ms|
+|batching_time_millis| Batching grouping time in millis |1ms|
 |message_routing_mode| the message routing mode, SinglePartition,RoundRobinPartition, CustomPartition(0,1,2) |1|
 |hashing_schema| JavaStringHash,Murmur3_32Hash(0,1) |0|
 |compression_type| NONE,LZ4,ZLIB,ZSTD(0,1,2,3) |0|

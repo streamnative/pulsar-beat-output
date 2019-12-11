@@ -53,9 +53,10 @@ type pulsarConfig struct {
 	BlockIfQueueFull                   bool                      `config:"block_if_queue_full"`
 	HashingScheme                      pulsar.HashingScheme      `config:"hashing_schema"`
 	CompressionType                    pulsar.CompressionType    `config:"compression_type"`
-	DisableBatching                           bool                      `config:"disable_batching"`
-	BatchingMaxPublishDelay            int             `config:"batching_max_publish_delay"`
+	Batching                           bool                      `config:"batching"`
+	BatchingMaxPublishDelay            time.Duration             `config:"batching_max_publish_delay"`
 	BatchingMaxMessages                uint                      `config:"batching_max_messages"`
+	BatchingTimeMillis								 uint 										 `config:"batching_time_millis`
 }
 
 func defaultConfig() pulsarConfig {
@@ -153,11 +154,11 @@ func initOptions(
 	if config.CompressionType > 0 {
 		producerOptions.CompressionType = config.CompressionType
 	}
-	if config.DisableBatching {
-		producerOptions.DisableBatching = config.DisableBatching
+	if config.Batching {
+		producerOptions.DisableBatching = !config.Batching
 	}
-	if config.BatchingMaxPublishDelay > 0 {
-		producerOptions.BatchingMaxPublishDelay = time.Duration(config.BatchingMaxPublishDelay) * time.Second
+	if config.BatchingTimeMillis > 0 {
+		producerOptions.BatchingMaxPublishDelay = time.Duration(config.BatchingTimeMillis) * time.Second
 	} else {
 		producerOptions.BatchingMaxPublishDelay = time.Duration(1) * time.Second
 	}
