@@ -56,7 +56,7 @@ type pulsarConfig struct {
 	Batching                           bool                      `config:"batching"`
 	BatchingMaxPublishDelay            time.Duration             `config:"batching_max_publish_delay"`
 	BatchingMaxMessages                uint                      `config:"batching_max_messages"`
-	BatchingTimeMillis								 uint 										 `config:"batching_time_millis`
+	BatchingTimeMillis								 uint 										 `config:"batching_time_millis"`
 }
 
 func defaultConfig() pulsarConfig {
