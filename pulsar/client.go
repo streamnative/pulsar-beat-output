@@ -112,6 +112,7 @@ func (c *client) Publish(batch publisher.Batch) error {
 		})
 		logp.Debug("pulsar", "Pulsar success send events: %d", i)
 	}
+	c.producer.Flush()
 	c.observer.Dropped(dropped)
 	c.observer.Acked(len(events) - dropped)
 	logp.Debug("pulsar", "Pulsar success send events: %d", len(events))
