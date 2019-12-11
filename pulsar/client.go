@@ -21,6 +21,7 @@ package pulsar
 
 import (
 	"context"
+	"sync"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/elastic/beats/libbeat/beat"
@@ -93,6 +94,8 @@ func (c *client) Publish(batch publisher.Batch) error {
 	c.observer.NewBatch(len(events))
 	dropped := 0
 	logp.Debug("pulsar", "Pulsar received events: %d", len(events))
+	wg := sync.WaitGroup{}
+	wg.Add(len(events))
 	for i := range events {
 		event := &events[i]
 		serializedEvent, err := c.codec.Encode(c.beat.Beat, &event.Content)
@@ -101,18 +104,23 @@ func (c *client) Publish(batch publisher.Batch) error {
 			logp.Err("Failed event: %v, error: %v", event, err)
 		}
 
-		logp.Debug("pulsar", "Pulsar success encode events: %d", i)
+		buf := make([]byte, len(serializedEvent))
+		copy(buf, serializedEvent)
+
+		logp.Debug("pulsar", "Pulsar success encode events: %v", string(serializedEvent))
 		c.producer.SendAsync(context.Background(), &pulsar.ProducerMessage{
-			Payload: []byte(serializedEvent),
+			Payload: buf,
 		}, func(msgID pulsar.MessageID, message *pulsar.ProducerMessage, e error) {
 			if e != nil {
 				dropped++
 				logp.Err("produce send failed: %v", err)
 			}
+			wg.Done()
 		})
 		logp.Debug("pulsar", "Pulsar success send events: %d", i)
-		c.producer.Flush()
 	}
+	c.producer.Flush()
+	wg.Wait()
 	c.observer.Dropped(dropped)
 	c.observer.Acked(len(events) - dropped)
 	logp.Debug("pulsar", "Pulsar success send events: %d", len(events))
