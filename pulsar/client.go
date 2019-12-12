@@ -95,8 +95,8 @@ func (c *client) Publish(batch publisher.Batch) error {
 	dropped := 0
 	logp.Debug("pulsar", "Pulsar received events: %d", len(events))
 	wg := sync.WaitGroup{}
-	wg.Add(len(events))
 	for i := range events {
+		wg.Add(1)
 		event := &events[i]
 		serializedEvent, err := c.codec.Encode(c.beat.Beat, &event.Content)
 		if err != nil {
@@ -115,9 +115,9 @@ func (c *client) Publish(batch publisher.Batch) error {
 				dropped++
 				logp.Err("produce send failed: %v", err)
 			}
-			wg.Done()
 		})
-		logp.Debug("pulsar", "Pulsar success send events: %d", i)
+		logp.Debug("pulsar", "Pulsar success send event: %d", i)
+		wg.Done()
 	}
 	c.producer.Flush()
 	wg.Wait()
