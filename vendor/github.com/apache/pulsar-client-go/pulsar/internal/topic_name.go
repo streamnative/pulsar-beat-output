@@ -44,9 +44,10 @@ func ParseTopicName(topic string) (*TopicName, error) {
 	if !strings.Contains(topic, "://") {
 		// The short topic name can be:
 		// - <topic>
-		// - <property>/<namespace>/<topic>
+		// - <tenant>/<namespace>/<topic>
+		// - <tenant>/<cluster>/<namespace>/<topic>
 		parts := strings.Split(topic, "/")
-		if len(parts) == 3 {
+		if len(parts) == 3 || len(parts) == 4 {
 			topic = "persistent://" + topic
 		} else if len(parts) == 1 {
 			topic = "persistent://" + publicTenant + "/" + defaultNamespace + "/" + parts[0]
@@ -95,6 +96,17 @@ func ParseTopicName(topic string) (*TopicName, error) {
 	}
 
 	return tn, nil
+}
+
+func TopicNameWithoutPartitionPart(tn *TopicName) string {
+	if tn.Partition < 0 {
+		return tn.Name
+	}
+	idx := strings.LastIndex(tn.Name, partitionedTopicSuffix)
+	if idx > 0 {
+		return tn.Name[:idx]
+	}
+	return tn.Name
 }
 
 func getPartitionIndex(topic string) (int, error) {

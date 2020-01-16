@@ -17,7 +17,10 @@
 
 package pulsar
 
-import "time"
+import (
+	"math"
+	"time"
+)
 
 // ProducerMessage abstraction used in Pulsar producer
 type ProducerMessage struct {
@@ -38,6 +41,18 @@ type ProducerMessage struct {
 
 	// SequenceID set the sequence id to assign to the current message
 	SequenceID *int64
+
+	// Request to deliver the message only after the specified relative delay.
+	// Note: messages are only delivered with delay when a consumer is consuming
+	//     through a `SubscriptionType=Shared` subscription. With other subscription
+	//     types, the messages will still be delivered immediately.
+	DeliverAfter time.Duration
+
+	// Deliver the message only at or after the specified absolute timestamp.
+	// Note: messages are only delivered with delay when a consumer is consuming
+	//     through a `SubscriptionType=Shared` subscription. With other subscription
+	//     types, the messages will still be delivered immediately.
+	DeliverAt time.Time
 }
 
 // Message abstraction used in Pulsar
@@ -56,7 +71,8 @@ type Message interface {
 	// The message id can be used to univocally refer to a message without having the keep the entire payload in memory.
 	ID() MessageID
 
-	// PublishTime get the publish time of this message. The publish time is the timestamp that a client publish the message.
+	// PublishTime get the publish time of this message. The publish time is the timestamp that a client
+	// publish the message.
 	PublishTime() time.Time
 
 	// EventTime get the event time associated with this message. It is typically set by the applications via
@@ -79,10 +95,12 @@ func DeserializeMessageID(data []byte) (MessageID, error) {
 	return deserializeMessageID(data)
 }
 
-var (
-	// EarliestMessage messageID that points to the earliest message available in a topic
-	EarliestMessage = earliestMessageID()
+// EarliestMessageID returns a messageID that points to the earliest message available in a topic
+func EarliestMessageID() MessageID {
+	return newMessageID(-1, -1, -1, -1)
+}
 
-	// LatestMessage messageID that points to the latest message
-	LatestMessage = latestMessageID()
-)
+// LatestMessage returns a messageID that points to the latest message
+func LatestMessageID() MessageID {
+	return newMessageID(math.MaxInt64, math.MaxInt64, -1, -1)
+}

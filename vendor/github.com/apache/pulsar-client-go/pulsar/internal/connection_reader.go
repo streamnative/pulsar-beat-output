@@ -21,7 +21,7 @@ import (
 	"bufio"
 	"io"
 
-	"github.com/apache/pulsar-client-go/pkg/pb"
+	"github.com/apache/pulsar-client-go/pulsar/internal/pb"
 	"github.com/golang/protobuf/proto"
 	"github.com/pkg/errors"
 )
@@ -45,17 +45,21 @@ func (r *connectionReader) readFromConnection() {
 		cmd, headersAndPayload, err := r.readSingleCommand()
 		if err != nil {
 			r.cnx.log.WithError(err).Info("Error reading from connection")
-			r.cnx.Close()
+			r.cnx.TriggerClose()
 			break
 		}
 
 		// Process
-		r.cnx.log.Debug("Got command! ", cmd, " with payload ", headersAndPayload)
+		var payloadLen uint32
+		if headersAndPayload != nil {
+			payloadLen = headersAndPayload.ReadableBytes()
+		}
+		r.cnx.log.Debug("Got command! ", cmd, " with payload size: ", payloadLen)
 		r.cnx.receivedCommand(cmd, headersAndPayload)
 	}
 }
 
-func (r *connectionReader) readSingleCommand() (cmd *pb.BaseCommand, headersAndPayload []byte, err error) {
+func (r *connectionReader) readSingleCommand() (cmd *pb.BaseCommand, headersAndPayload Buffer, err error) {
 	// First, we need to read the frame size
 	if r.buffer.ReadableBytes() < 4 {
 		if r.buffer.ReadableBytes() == 0 {
@@ -71,13 +75,14 @@ func (r *connectionReader) readSingleCommand() (cmd *pb.BaseCommand, headersAndP
 	frameSize := r.buffer.ReadUint32()
 	if frameSize > MaxFrameSize {
 		r.cnx.log.Warnf("Received too big frame size. size=%d", frameSize)
-		r.cnx.Close()
+		r.cnx.TriggerClose()
 		return nil, nil, errors.New("Frame size too big")
 	}
 
 	// Next, we read the rest of the frame
 	if r.buffer.ReadableBytes() < frameSize {
-		if !r.readAtLeast(frameSize) {
+		remainingBytes := frameSize - r.buffer.ReadableBytes()
+		if !r.readAtLeast(remainingBytes) {
 			return nil, nil, errors.New("Short read when reading frame")
 		}
 	}
@@ -92,8 +97,8 @@ func (r *connectionReader) readSingleCommand() (cmd *pb.BaseCommand, headersAndP
 	// Also read the eventual payload
 	headersAndPayloadSize := frameSize - (cmdSize + 4)
 	if cmdSize+4 < frameSize {
-		headersAndPayload = make([]byte, headersAndPayloadSize)
-		copy(headersAndPayload, r.buffer.Read(headersAndPayloadSize))
+		headersAndPayload = NewBuffer(int(headersAndPayloadSize))
+		headersAndPayload.Write(r.buffer.Read(headersAndPayloadSize))
 	}
 	return cmd, headersAndPayload, nil
 }
@@ -114,7 +119,7 @@ func (r *connectionReader) readAtLeast(size uint32) (ok bool) {
 
 	n, err := io.ReadAtLeast(r.cnx.cnx, r.buffer.WritableSlice(), int(size))
 	if err != nil {
-		r.cnx.Close()
+		r.cnx.TriggerClose()
 		return false
 	}
 
@@ -127,7 +132,7 @@ func (r *connectionReader) deserializeCmd(data []byte) (*pb.BaseCommand, error) 
 	err := proto.Unmarshal(data, cmd)
 	if err != nil {
 		r.cnx.log.WithError(err).Warn("Failed to parse protobuf command")
-		r.cnx.Close()
+		r.cnx.TriggerClose()
 		return nil, err
 	}
 	return cmd, nil

@@ -22,11 +22,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"strings"
 	"testing"
 	"time"
 
-	"github.com/apache/pulsar-client-go/util"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -65,7 +63,7 @@ func TestProducerConsumer(t *testing.T) {
 
 	// send 10 messages
 	for i := 0; i < 10; i++ {
-		if err := producer.Send(ctx, &ProducerMessage{
+		if _, err := producer.Send(ctx, &ProducerMessage{
 			Payload: []byte(fmt.Sprintf("hello-%d", i)),
 			Key:     "pulsar",
 			Properties: map[string]string{
@@ -92,14 +90,7 @@ func TestProducerConsumer(t *testing.T) {
 		assert.Equal(t, expectProperties, msg.Properties())
 
 		// ack message
-		if err := consumer.Ack(msg); err != nil {
-			log.Fatal(err)
-		}
-	}
-
-	// unsubscribe consumer
-	if err := consumer.Unsubscribe(); err != nil {
-		log.Fatal(err)
+		consumer.Ack(msg)
 	}
 }
 
@@ -145,7 +136,6 @@ func TestBatchMessageReceive(t *testing.T) {
 		Topic:               topicName,
 		BatchingMaxMessages: uint(batchSize),
 		DisableBatching:     false,
-		BlockIfQueueFull:    true,
 	})
 	assert.Nil(t, err)
 	assert.Equal(t, topicName, producer.Topic())
@@ -156,7 +146,6 @@ func TestBatchMessageReceive(t *testing.T) {
 		SubscriptionName: subName,
 	})
 	assert.Nil(t, err)
-	assert.Equal(t, topicName, consumer.Topic())
 	count := 0
 
 	for i := 0; i < numOfMessages; i++ {
@@ -164,25 +153,17 @@ func TestBatchMessageReceive(t *testing.T) {
 		msg := &ProducerMessage{
 			Payload: []byte(messageContent),
 		}
-		err := producer.Send(ctx, msg)
+		_, err := producer.Send(ctx, msg)
 		assert.Nil(t, err)
 	}
 
 	for i := 0; i < numOfMessages; i++ {
 		msg, err := consumer.Receive(ctx)
 		assert.Nil(t, err)
-		err = consumer.Ack(msg)
-		assert.Nil(t, err)
+		consumer.Ack(msg)
 		count++
 	}
 
-	// check strategically
-	for i := 0; i < 3; i++ {
-		if count == numOfMessages {
-			break
-		}
-		time.Sleep(time.Second)
-	}
 	assert.Equal(t, count, numOfMessages)
 }
 
@@ -202,7 +183,7 @@ func TestConsumerWithInvalidConf(t *testing.T) {
 		Topic: "my-topic",
 	})
 
-	// Expect error in creating cosnumer
+	// Expect error in creating consumer
 	assert.Nil(t, consumer)
 	assert.NotNil(t, err)
 
@@ -220,7 +201,7 @@ func TestConsumerWithInvalidConf(t *testing.T) {
 	assert.Equal(t, err.(*Error).Result(), TopicNotFound)
 }
 
-func TestConsumer_SubscriptionEarliestPos(t *testing.T) {
+func TestConsumerSubscriptionEarliestPosition(t *testing.T) {
 	client, err := NewClient(ClientOptions{
 		URL: lookupURL,
 	})
@@ -238,24 +219,23 @@ func TestConsumer_SubscriptionEarliestPos(t *testing.T) {
 	assert.Nil(t, err)
 	defer producer.Close()
 
-	//sent message
+	// send message
 	ctx := context.Background()
-
-	err = producer.Send(ctx, &ProducerMessage{
+	_, err = producer.Send(ctx, &ProducerMessage{
 		Payload: []byte("msg-1-content-1"),
 	})
 	assert.Nil(t, err)
 
-	err = producer.Send(ctx, &ProducerMessage{
+	_, err = producer.Send(ctx, &ProducerMessage{
 		Payload: []byte("msg-1-content-2"),
 	})
 	assert.Nil(t, err)
 
 	// create consumer
 	consumer, err := client.Subscribe(ConsumerOptions{
-		Topic:               topicName,
-		SubscriptionName:    subName,
-		SubscriptionInitPos: Earliest,
+		Topic:                       topicName,
+		SubscriptionName:            subName,
+		SubscriptionInitialPosition: SubscriptionPositionEarliest,
 	})
 	assert.Nil(t, err)
 	defer consumer.Close()
@@ -264,24 +244,6 @@ func TestConsumer_SubscriptionEarliestPos(t *testing.T) {
 	assert.Nil(t, err)
 
 	assert.Equal(t, "msg-1-content-1", string(msg.Payload()))
-}
-
-func makeHTTPCall(t *testing.T, method string, urls string, body string) {
-	client := http.Client{}
-
-	req, err := http.NewRequest(method, urls, strings.NewReader(body))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-
-	res, err := client.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer res.Body.Close()
 }
 
 func TestConsumerKeyShared(t *testing.T) {
@@ -311,47 +273,43 @@ func TestConsumerKeyShared(t *testing.T) {
 
 	// create producer
 	producer, err := client.CreateProducer(ProducerOptions{
-		Topic: topic,
+		Topic:           topic,
+		DisableBatching: true,
 	})
 	assert.Nil(t, err)
 	defer producer.Close()
 
 	ctx := context.Background()
 	for i := 0; i < 10; i++ {
-		err := producer.Send(ctx, &ProducerMessage{
+		_, err := producer.Send(ctx, &ProducerMessage{
 			Key:     fmt.Sprintf("key-shared-%d", i%3),
 			Payload: []byte(fmt.Sprintf("value-%d", i)),
 		})
 		assert.Nil(t, err)
 	}
 
-	time.Sleep(time.Second * 1)
-
-	go func() {
-		for i := 0; i < 10; i++ {
-			msg, err := consumer1.Receive(ctx)
-			assert.Nil(t, err)
-			if msg != nil {
-				fmt.Printf("consumer1 key is: %s, value is: %s\n", msg.Key(), string(msg.Payload()))
-				err = consumer1.Ack(msg)
-				assert.Nil(t, err)
+	receivedConsumer1 := 0
+	receivedConsumer2 := 0
+	for (receivedConsumer1 + receivedConsumer2) < 10 {
+		select {
+		case cm, ok := <-consumer1.Chan():
+			if !ok {
+				break
 			}
-		}
-	}()
-
-	go func() {
-		for i := 0; i < 10; i++ {
-			msg2, err := consumer2.Receive(ctx)
-			assert.Nil(t, err)
-			if msg2 != nil {
-				fmt.Printf("consumer2 key is:%s, value is: %s\n", msg2.Key(), string(msg2.Payload()))
-				err = consumer2.Ack(msg2)
-				assert.Nil(t, err)
+			receivedConsumer1++
+			consumer1.Ack(cm.Message)
+		case cm, ok := <-consumer2.Chan():
+			if !ok {
+				break
 			}
+			receivedConsumer2++
+			consumer2.Ack(cm.Message)
 		}
-	}()
+	}
 
-	time.Sleep(time.Second * 1)
+	fmt.Printf("TestConsumerKeyShared received messages consumer1: %d consumser2: %d\n",
+		receivedConsumer1, receivedConsumer2)
+	assert.Equal(t, 10, receivedConsumer1+receivedConsumer2)
 }
 
 func TestPartitionTopicsConsumerPubSub(t *testing.T) {
@@ -390,7 +348,7 @@ func TestPartitionTopicsConsumerPubSub(t *testing.T) {
 
 	ctx := context.Background()
 	for i := 0; i < 10; i++ {
-		err := producer.Send(ctx, &ProducerMessage{
+		_, err := producer.Send(ctx, &ProducerMessage{
 			Payload: []byte(fmt.Sprintf("hello-%d", i)),
 		})
 		assert.Nil(t, err)
@@ -406,245 +364,38 @@ func TestPartitionTopicsConsumerPubSub(t *testing.T) {
 		fmt.Printf("Received message msgId: %#v -- content: '%s'\n",
 			msg.ID(), string(msg.Payload()))
 
-		if err := consumer.Ack(msg); err != nil {
-			assert.Nil(t, err)
-		}
+		consumer.Ack(msg)
 	}
 
 	assert.Equal(t, len(msgs), 10)
 }
 
-func TestConsumer_ReceiveAsync(t *testing.T) {
-	client, err := NewClient(ClientOptions{
-		URL: lookupURL,
-	})
-
-	assert.Nil(t, err)
-	defer client.Close()
-
-	topicName := "persistent://public/default/receive-async"
-	subName := "subscription-receive-async"
-	ctx := context.Background()
-	ch := make(chan ConsumerMessage, 10)
-
-	// create producer
-	producer, err := client.CreateProducer(ProducerOptions{
-		Topic: topicName,
-	})
-	assert.Nil(t, err)
-	defer producer.Close()
-
-	consumer, err := client.Subscribe(ConsumerOptions{
-		Topic:            topicName,
-		SubscriptionName: subName,
-	})
-	assert.Nil(t, err)
-	defer consumer.Close()
-
-	//send 10 messages
-	for i := 0; i < 10; i++ {
-		err = producer.Send(ctx, &ProducerMessage{
-			Payload: []byte(fmt.Sprintf("hello-%d", i)),
-		})
-		assert.Nil(t, err)
-	}
-
-	//receive async 10 messages
-	err = consumer.ReceiveAsync(ctx, ch)
-	assert.Nil(t, err)
-
-	payloadList := make([]string, 0, 10)
-
-RECEIVE:
-	for {
-		select {
-		case cMsg, ok := <-ch:
-			if ok {
-				fmt.Printf("receive message payload is:%s\n", string(cMsg.Payload()))
-				assert.Equal(t, topicName, cMsg.Message.Topic())
-				assert.Equal(t, topicName, cMsg.Consumer.Topic())
-				payloadList = append(payloadList, string(cMsg.Message.Payload()))
-				if len(payloadList) == 10 {
-					break RECEIVE
-				}
-			}
-			continue RECEIVE
-		case <-ctx.Done():
-			t.Error("context error.")
-			return
-		}
-	}
-}
-
-func TestConsumerAckTimeout(t *testing.T) {
+func TestConsumerReceiveTimeout(t *testing.T) {
 	client, err := NewClient(ClientOptions{
 		URL: lookupURL,
 	})
 	assert.Nil(t, err)
 	defer client.Close()
 
-	topic := "test-ack-timeout-topic-1"
-	ctx := context.Background()
+	topic := "test-topic-with-no-messages"
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
 
 	// create consumer
 	consumer, err := client.Subscribe(ConsumerOptions{
 		Topic:            topic,
 		SubscriptionName: "my-sub1",
 		Type:             Shared,
-		AckTimeout:       5 * 1000,
 	})
 	assert.Nil(t, err)
 	defer consumer.Close()
 
-	// create consumer1
-	consumer1, err := client.Subscribe(ConsumerOptions{
-		Topic:            topic,
-		SubscriptionName: "my-sub2",
-		Type:             Shared,
-		AckTimeout:       5 * 1000,
-	})
-	assert.Nil(t, err)
-	defer consumer1.Close()
-
-	// create producer
-	producer, err := client.CreateProducer(ProducerOptions{
-		Topic:           topic,
-		DisableBatching: true,
-	})
-	assert.Nil(t, err)
-	defer producer.Close()
-
-	// send 10 messages
-	for i := 0; i < 10; i++ {
-		if err := producer.Send(ctx, &ProducerMessage{
-			Payload: []byte(fmt.Sprintf("hello-%d", i)),
-		}); err != nil {
-			log.Fatal(err)
-		}
-	}
-
-	// consumer receive 10 messages
-	payloadList := make([]string, 0, 10)
-	for i := 0; i < 10; i++ {
-		msg, err := consumer.Receive(context.Background())
-		if err != nil {
-			log.Fatal(err)
-		}
-		payloadList = append(payloadList, string(msg.Payload()))
-
-		// not ack message
-	}
-	assert.Equal(t, 10, len(payloadList))
-
-	// consumer1 receive 10 messages
-	for i := 0; i < 10; i++ {
-		msg, err := consumer1.Receive(context.Background())
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		payloadList = append(payloadList, string(msg.Payload()))
-
-		// ack half of the messages
-		if i%2 == 0 {
-			err = consumer1.Ack(msg)
-			assert.Nil(t, err)
-		}
-	}
-
-	// wait ack timeout
-	time.Sleep(6 * time.Second)
-
-	fmt.Println("start redeliver messages...")
-
-	payloadList = make([]string, 0, 10)
-	// consumer receive messages again
-	for i := 0; i < 10; i++ {
-		msg, err := consumer.Receive(context.Background())
-		if err != nil {
-			log.Fatal(err)
-		}
-		payloadList = append(payloadList, string(msg.Payload()))
-
-		// ack message
-		if err := consumer.Ack(msg); err != nil {
-			log.Fatal(err)
-		}
-	}
-	assert.Equal(t, 10, len(payloadList))
-
-	payloadList = make([]string, 0, 5)
-	// consumer1 receive messages again
-	go func() {
-		for i := 0; i < 10; i++ {
-			msg, err := consumer1.Receive(context.Background())
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			expectMsg := fmt.Sprintf("hello-%d", i)
-			fmt.Printf("redeliver messages, payload is:%s\n", expectMsg)
-			payloadList = append(payloadList, string(msg.Payload()))
-
-			// ack message
-			if err := consumer1.Ack(msg); err != nil {
-				log.Fatal(err)
-			}
-		}
-		assert.Equal(t, 5, len(payloadList))
-	}()
-
-	// sleep 2 seconds, wait gorutine receive messages.
-	time.Sleep(time.Second * 2)
+	msg, err := consumer.Receive(ctx)
+	assert.Nil(t, msg)
+	assert.NotNil(t, err)
 }
 
-func TestConsumer_ReceiveAsyncWithCallback(t *testing.T) {
-	client, err := NewClient(ClientOptions{
-		URL: lookupURL,
-	})
-
-	assert.Nil(t, err)
-	defer client.Close()
-
-	topicName := "persistent://public/default/receive-async-with-callback"
-	subName := "subscription-receive-async"
-	ctx := context.Background()
-
-	// create producer
-	producer, err := client.CreateProducer(ProducerOptions{
-		Topic: topicName,
-	})
-	assert.Nil(t, err)
-	defer producer.Close()
-
-	consumer, err := client.Subscribe(ConsumerOptions{
-		Topic:            topicName,
-		SubscriptionName: subName,
-	})
-	assert.Nil(t, err)
-	defer consumer.Close()
-
-	//send 10 messages
-	for i := 0; i < 10; i++ {
-		err := producer.Send(ctx, &ProducerMessage{
-			Payload: []byte(fmt.Sprintf("hello-%d", i)),
-		})
-		assert.Nil(t, err)
-	}
-
-	for i := 0; i < 10; i++ {
-		tmpMsg := fmt.Sprintf("hello-%d", i)
-		consumer.ReceiveAsyncWithCallback(ctx, func(msg Message, err error) {
-			if err != nil {
-				log.Fatal(err)
-			}
-			fmt.Printf("receive message payload is:%s\n", string(msg.Payload()))
-			assert.Equal(t, tmpMsg, string(msg.Payload()))
-		})
-	}
-}
-
-func TestConsumer_Shared(t *testing.T) {
+func TestConsumerShared(t *testing.T) {
 	client, err := NewClient(ClientOptions{
 		URL: lookupURL,
 	})
@@ -682,116 +433,45 @@ func TestConsumer_Shared(t *testing.T) {
 	assert.Nil(t, err)
 	defer producer.Close()
 
-	// send 10 messages
+	// send 10 messages with unique payloads
 	for i := 0; i < 10; i++ {
-		if err := producer.Send(context.Background(), &ProducerMessage{
+		if _, err := producer.Send(context.Background(), &ProducerMessage{
 			Payload: []byte(fmt.Sprintf("hello-%d", i)),
 		}); err != nil {
 			log.Fatal(err)
 		}
+		fmt.Println("sending message:", fmt.Sprintf("hello-%d", i))
 	}
 
-	msgList := make([]string, 0, 5)
-	for i := 0; i < 5; i++ {
-		msg, err := consumer1.Receive(context.Background())
-		if err != nil {
-			log.Fatal(err)
-		}
-		fmt.Printf("consumer1 msg id is: %v, value is: %s\n", msg.ID(), string(msg.Payload()))
-		msgList = append(msgList, string(msg.Payload()))
-		if err := consumer1.Ack(msg); err != nil {
-			log.Fatal(err)
+	readMsgs := 0
+	messages := make(map[string]struct{})
+	for readMsgs < 10 {
+		select {
+		case cm, ok := <-consumer1.Chan():
+			if !ok {
+				break
+			}
+			readMsgs++
+			payload := string(cm.Message.Payload())
+			messages[payload] = struct{}{}
+			fmt.Printf("consumer1 msg id is: %v, value is: %s\n", cm.Message.ID(), payload)
+			consumer1.Ack(cm.Message)
+		case cm, ok := <-consumer2.Chan():
+			if !ok {
+				break
+			}
+			readMsgs++
+			payload := string(cm.Message.Payload())
+			messages[payload] = struct{}{}
+			fmt.Printf("consumer2 msg id is: %v, value is: %s\n", cm.Message.ID(), payload)
+			consumer2.Ack(cm.Message)
 		}
 	}
 
-	assert.Equal(t, 5, len(msgList))
-
-	for i := 0; i < 5; i++ {
-		msg, err := consumer2.Receive(context.Background())
-		if err != nil {
-			log.Fatal(err)
-		}
-		if err := consumer2.Ack(msg); err != nil {
-			log.Fatal(err)
-		}
-		fmt.Printf("consumer2 msg id is: %v, value is: %s\n", msg.ID(), string(msg.Payload()))
-		msgList = append(msgList, string(msg.Payload()))
-	}
-
-	assert.Equal(t, 10, len(msgList))
-	res := util.RemoveDuplicateElement(msgList)
-	assert.Equal(t, 10, len(res))
+	assert.Equal(t, 10, len(messages))
 }
 
-func TestConsumer_Seek(t *testing.T) {
-	client, err := NewClient(ClientOptions{
-		URL: lookupURL,
-	})
-
-	assert.Nil(t, err)
-	defer client.Close()
-
-	topicName := "persistent://public/default/testSeek"
-	testURL := adminURL + "/" + "admin/v2/persistent/public/default/testSeek"
-	makeHTTPCall(t, http.MethodPut, testURL, "1")
-	subName := "sub-testSeek"
-
-	producer, err := client.CreateProducer(ProducerOptions{
-		Topic: topicName,
-	})
-	assert.Nil(t, err)
-	assert.Equal(t, producer.Topic(), topicName)
-	defer producer.Close()
-
-	consumer, err := client.Subscribe(ConsumerOptions{
-		Topic:            topicName,
-		SubscriptionName: subName,
-	})
-	assert.Nil(t, err)
-	assert.Equal(t, consumer.Topic(), topicName)
-	assert.Equal(t, consumer.Subscription(), subName)
-	defer consumer.Close()
-
-	ctx := context.Background()
-
-	// Send 10 messages synchronously
-	t.Log("Publishing 10 messages synchronously")
-	for msgNum := 0; msgNum < 10; msgNum++ {
-		if err := producer.Send(ctx, &ProducerMessage{
-			Payload: []byte(fmt.Sprintf("msg-content-%d", msgNum)),
-		}); err != nil {
-			t.Fatal(err)
-		}
-	}
-
-	t.Log("Trying to receive 10 messages")
-	idList := make([]MessageID, 0, 10)
-	for msgNum := 0; msgNum < 10; msgNum++ {
-		msg, err := consumer.Receive(ctx)
-		assert.Nil(t, err)
-		idList = append(idList, msg.ID())
-		fmt.Println(string(msg.Payload()))
-	}
-
-	for index, id := range idList {
-		if index == 4 {
-			// seek to fourth message, expected receive fourth message.
-			err = consumer.Seek(id)
-			assert.Nil(t, err)
-			break
-		}
-	}
-
-	// Sleeping for 500ms to wait for consumer re-connect
-	time.Sleep(500 * time.Millisecond)
-
-	msg, err := consumer.Receive(ctx)
-	assert.Nil(t, err)
-	t.Logf("again received message:%+v", msg.ID())
-	assert.Equal(t, "msg-content-4", string(msg.Payload()))
-}
-
-func TestConsumer_EventTime(t *testing.T) {
+func TestConsumerEventTime(t *testing.T) {
 	client, err := NewClient(ClientOptions{
 		URL: lookupURL,
 	})
@@ -816,7 +496,7 @@ func TestConsumer_EventTime(t *testing.T) {
 	defer consumer.Close()
 
 	et := timeFromUnixTimestampMillis(uint64(5))
-	err = producer.Send(ctx, &ProducerMessage{
+	_, err = producer.Send(ctx, &ProducerMessage{
 		Payload:   []byte("test"),
 		EventTime: &et,
 	})
@@ -828,7 +508,7 @@ func TestConsumer_EventTime(t *testing.T) {
 	assert.Equal(t, "test", string(msg.Payload()))
 }
 
-func TestConsumer_Flow(t *testing.T) {
+func TestConsumerFlow(t *testing.T) {
 	client, err := NewClient(ClientOptions{
 		URL: lookupURL,
 	})
@@ -850,9 +530,10 @@ func TestConsumer_Flow(t *testing.T) {
 		SubscriptionName:  "sub-1",
 		ReceiverQueueSize: 4,
 	})
+	assert.Nil(t, err)
 
 	for msgNum := 0; msgNum < 100; msgNum++ {
-		if err := producer.Send(ctx, &ProducerMessage{
+		if _, err := producer.Send(ctx, &ProducerMessage{
 			Payload: []byte(fmt.Sprintf("msg-content-%d", msgNum)),
 		}); err != nil {
 			t.Fatal(err)
@@ -864,4 +545,285 @@ func TestConsumer_Flow(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Equal(t, fmt.Sprintf("msg-content-%d", msgNum), string(msg.Payload()))
 	}
+}
+
+func TestConsumerAck(t *testing.T) {
+	client, err := NewClient(ClientOptions{
+		URL: lookupURL,
+	})
+
+	assert.Nil(t, err)
+	defer client.Close()
+
+	topicName := newTopicName()
+	ctx := context.Background()
+
+	producer, err := client.CreateProducer(ProducerOptions{
+		Topic: topicName,
+	})
+	assert.Nil(t, err)
+	defer producer.Close()
+
+	consumer, err := client.Subscribe(ConsumerOptions{
+		Topic:            topicName,
+		SubscriptionName: "sub-1",
+		Type:             Shared,
+	})
+	assert.Nil(t, err)
+
+	const N = 100
+
+	for i := 0; i < N; i++ {
+		if _, err := producer.Send(ctx, &ProducerMessage{
+			Payload: []byte(fmt.Sprintf("msg-content-%d", i)),
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	for i := 0; i < N; i++ {
+		msg, err := consumer.Receive(ctx)
+		assert.Nil(t, err)
+		assert.Equal(t, fmt.Sprintf("msg-content-%d", i), string(msg.Payload()))
+
+		if i < N/2 {
+			// Only acks the first half of messages
+			consumer.Ack(msg)
+		}
+	}
+
+	consumer.Close()
+
+	// Subscribe again
+	consumer, err = client.Subscribe(ConsumerOptions{
+		Topic:            topicName,
+		SubscriptionName: "sub-1",
+		Type:             Shared,
+	})
+	assert.Nil(t, err)
+	defer consumer.Close()
+
+	// We should only receive the 2nd half of messages
+	for i := N / 2; i < N; i++ {
+		msg, err := consumer.Receive(ctx)
+		assert.Nil(t, err)
+		assert.Equal(t, fmt.Sprintf("msg-content-%d", i), string(msg.Payload()))
+
+		consumer.Ack(msg)
+	}
+}
+
+func TestConsumerNack(t *testing.T) {
+	client, err := NewClient(ClientOptions{
+		URL: lookupURL,
+	})
+
+	assert.Nil(t, err)
+	defer client.Close()
+
+	topicName := newTopicName()
+	ctx := context.Background()
+
+	producer, err := client.CreateProducer(ProducerOptions{
+		Topic: topicName,
+	})
+	assert.Nil(t, err)
+	defer producer.Close()
+
+	consumer, err := client.Subscribe(ConsumerOptions{
+		Topic:               topicName,
+		SubscriptionName:    "sub-1",
+		Type:                Shared,
+		NackRedeliveryDelay: 1 * time.Second,
+	})
+	assert.Nil(t, err)
+
+	const N = 100
+
+	for i := 0; i < N; i++ {
+		if _, err := producer.Send(ctx, &ProducerMessage{
+			Payload: []byte(fmt.Sprintf("msg-content-%d", i)),
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	for i := 0; i < N; i++ {
+		msg, err := consumer.Receive(ctx)
+		assert.Nil(t, err)
+		assert.Equal(t, fmt.Sprintf("msg-content-%d", i), string(msg.Payload()))
+
+		if i%2 == 0 {
+			// Only acks even messages
+			consumer.Ack(msg)
+		} else {
+			// Fails to process odd messages
+			consumer.Nack(msg)
+		}
+	}
+
+	// Failed messages should be resent
+
+	// We should only receive the odd messages
+	for i := 1; i < N; i += 2 {
+		msg, err := consumer.Receive(ctx)
+		assert.Nil(t, err)
+		assert.Equal(t, fmt.Sprintf("msg-content-%d", i), string(msg.Payload()))
+
+		consumer.Ack(msg)
+	}
+}
+
+func TestConsumerCompression(t *testing.T) {
+	client, err := NewClient(ClientOptions{
+		URL: lookupURL,
+	})
+
+	assert.Nil(t, err)
+	defer client.Close()
+
+	topicName := newTopicName()
+	ctx := context.Background()
+
+	producer, err := client.CreateProducer(ProducerOptions{
+		Topic:           topicName,
+		CompressionType: LZ4,
+	})
+	assert.Nil(t, err)
+	defer producer.Close()
+
+	consumer, err := client.Subscribe(ConsumerOptions{
+		Topic:            topicName,
+		SubscriptionName: "sub-1",
+	})
+	assert.Nil(t, err)
+
+	const N = 100
+
+	for i := 0; i < N; i++ {
+		if _, err := producer.Send(ctx, &ProducerMessage{
+			Payload: []byte(fmt.Sprintf("msg-content-%d", i)),
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	for i := 0; i < N; i++ {
+		msg, err := consumer.Receive(ctx)
+		assert.Nil(t, err)
+		assert.Equal(t, fmt.Sprintf("msg-content-%d", i), string(msg.Payload()))
+		consumer.Ack(msg)
+	}
+}
+
+func TestConsumerCompressionWithBatches(t *testing.T) {
+	client, err := NewClient(ClientOptions{
+		URL: lookupURL,
+	})
+
+	assert.Nil(t, err)
+	defer client.Close()
+
+	topicName := newTopicName()
+	ctx := context.Background()
+
+	producer, err := client.CreateProducer(ProducerOptions{
+		Topic:                   topicName,
+		CompressionType:         ZLib,
+		BatchingMaxPublishDelay: 1 * time.Minute,
+	})
+	assert.Nil(t, err)
+	defer producer.Close()
+
+	consumer, err := client.Subscribe(ConsumerOptions{
+		Topic:            topicName,
+		SubscriptionName: "sub-1",
+	})
+	assert.Nil(t, err)
+
+	const N = 100
+
+	for i := 0; i < N; i++ {
+		producer.SendAsync(ctx, &ProducerMessage{
+			Payload: []byte(fmt.Sprintf("msg-content-%d", i)),
+		}, nil)
+	}
+
+	producer.Flush()
+
+	for i := 0; i < N; i++ {
+		msg, err := consumer.Receive(ctx)
+		assert.Nil(t, err)
+		assert.Equal(t, fmt.Sprintf("msg-content-%d", i), string(msg.Payload()))
+		consumer.Ack(msg)
+	}
+}
+
+func TestConsumerMetadata(t *testing.T) {
+	client, err := NewClient(ClientOptions{
+		URL: lookupURL,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+
+	topic := newTopicName()
+	props := map[string]string{
+		"key1": "value1",
+	}
+	consumer, err := client.Subscribe(ConsumerOptions{
+		Topic:            topic,
+		SubscriptionName: "my-sub",
+		Properties:       props,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer consumer.Close()
+	stats, err := topicStats(topic)
+	if err != nil {
+		t.Fatal(err)
+	}
+	subs := stats["subscriptions"].(map[string]interface{})
+	cons := subs["my-sub"].(map[string]interface{})["consumers"].([]interface{})[0].(map[string]interface{})
+	meta := cons["metadata"].(map[string]interface{})
+	assert.Equal(t, len(props), len(meta))
+	for k, v := range props {
+		mv := meta[k].(string)
+		assert.Equal(t, v, mv)
+	}
+}
+
+// Test for issue #140
+// Don't block on receive if the consumer has been closed
+func TestConsumerReceiveErrAfterClose(t *testing.T) {
+	client, err := NewClient(ClientOptions{
+		URL: lookupURL,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+
+	topicName := newTopicName()
+	consumer, err := client.Subscribe(ConsumerOptions{
+		Topic:            topicName,
+		SubscriptionName: "my-sub",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	consumer.Close()
+
+	errorCh := make(chan error)
+	go func() {
+		_, err = consumer.Receive(context.Background())
+		errorCh <- err
+	}()
+	select {
+	case <-time.After(200 * time.Millisecond):
+	case err = <-errorCh:
+	}
+	assert.Equal(t, ErrConsumerClosed, err)
 }

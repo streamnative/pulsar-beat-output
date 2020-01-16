@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net"
 	"net/url"
@@ -28,11 +29,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/apache/pulsar-client-go/pkg/auth"
-	"github.com/apache/pulsar-client-go/pkg/pb"
-	"github.com/apache/pulsar-client-go/util"
 	"github.com/golang/protobuf/proto"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/apache/pulsar-client-go/pulsar/internal/auth"
+	"github.com/apache/pulsar-client-go/pulsar/internal/pb"
 )
 
 type TLSOptions struct {
@@ -54,17 +55,19 @@ type ConnectionListener interface {
 
 // Connection is a interface of client cnx.
 type Connection interface {
-	SendRequest(requestID uint64, req *pb.BaseCommand, callback func(command *pb.BaseCommand))
+	SendRequest(requestID uint64, req *pb.BaseCommand, callback func(*pb.BaseCommand, error))
+	SendRequestNoWait(req *pb.BaseCommand)
 	WriteData(data []byte)
 	RegisterListener(id uint64, listener ConnectionListener)
 	UnregisterListener(id uint64)
 	AddConsumeHandler(id uint64, handler ConsumerHandler)
 	DeleteConsumeHandler(id uint64)
+	ID() string
 	Close()
 }
 
 type ConsumerHandler interface {
-	MessageReceived(response *pb.CommandMessage, headersAndPayload []byte) error
+	MessageReceived(response *pb.CommandMessage, headersAndPayload Buffer) error
 
 	// ConnectionClosed close the TCP connection.
 	ConnectionClosed()
@@ -80,61 +83,96 @@ const (
 	connectionClosed
 )
 
+func (s connectionState) String() string {
+	switch s {
+	case connectionInit:
+		return "Initializing"
+	case connectionConnecting:
+		return "Connecting"
+	case connectionTCPConnected:
+		return "TCPConnected"
+	case connectionReady:
+		return "Ready"
+	case connectionClosed:
+		return "Closed"
+	default:
+		return "Unknown"
+	}
+}
+
 const keepAliveInterval = 30 * time.Second
 
 type request struct {
-	id       uint64
+	id       *uint64
 	cmd      *pb.BaseCommand
-	callback func(command *pb.BaseCommand)
+	callback func(command *pb.BaseCommand, err error)
+}
+
+type incomingCmd struct {
+	cmd               *pb.BaseCommand
+	headersAndPayload Buffer
 }
 
 type connection struct {
 	sync.Mutex
-	cond  *sync.Cond
-	state connectionState
+	cond              *sync.Cond
+	state             connectionState
+	connectionTimeout time.Duration
 
 	logicalAddr  *url.URL
 	physicalAddr *url.URL
 	cnx          net.Conn
 
-	writeBuffer          Buffer
-	reader               *connectionReader
+	writeBufferLock sync.Mutex
+	writeBuffer     Buffer
+	reader          *connectionReader
+
+	lastDataReceivedLock sync.Mutex
 	lastDataReceivedTime time.Time
 	pingTicker           *time.Ticker
+	pingCheckTicker      *time.Ticker
 
 	log *log.Entry
 
 	requestIDGenerator uint64
 
-	incomingRequests chan *request
-	writeRequests    chan []byte
+	incomingRequestsCh chan *request
+	incomingCmdCh      chan *incomingCmd
+	closeCh            chan interface{}
+	writeRequestsCh    chan []byte
 
-	mapMutex    sync.RWMutex
 	pendingReqs map[uint64]*request
 	listeners   map[uint64]ConnectionListener
-	connWrapper *ConnWrapper
+
+	consumerHandlersLock sync.RWMutex
+	consumerHandlers     map[uint64]ConsumerHandler
 
 	tlsOptions *TLSOptions
 	auth       auth.Provider
 }
 
-func newConnection(logicalAddr *url.URL, physicalAddr *url.URL, tlsOptions *TLSOptions, auth auth.Provider) *connection {
+func newConnection(logicalAddr *url.URL, physicalAddr *url.URL, tlsOptions *TLSOptions,
+	connectionTimeout time.Duration, auth auth.Provider) *connection {
 	cnx := &connection{
 		state:                connectionInit,
+		connectionTimeout:    connectionTimeout,
 		logicalAddr:          logicalAddr,
 		physicalAddr:         physicalAddr,
 		writeBuffer:          NewBuffer(4096),
-		log:                  log.WithField("raddr", physicalAddr),
+		log:                  log.WithField("remote_addr", physicalAddr),
 		pendingReqs:          make(map[uint64]*request),
 		lastDataReceivedTime: time.Now(),
 		pingTicker:           time.NewTicker(keepAliveInterval),
+		pingCheckTicker:      time.NewTicker(keepAliveInterval),
 		tlsOptions:           tlsOptions,
 		auth:                 auth,
 
-		incomingRequests: make(chan *request),
-		writeRequests:    make(chan []byte),
-		listeners:        make(map[uint64]ConnectionListener),
-		connWrapper:      NewConnWrapper(),
+		closeCh:            make(chan interface{}),
+		incomingRequestsCh: make(chan *request, 10),
+		incomingCmdCh:      make(chan *incomingCmd, 10),
+		writeRequestsCh:    make(chan []byte, 10),
+		listeners:          make(map[uint64]ConnectionListener),
+		consumerHandlers:   make(map[uint64]ConsumerHandler),
 	}
 	cnx.reader = newConnectionReader(cnx)
 	cnx.cond = sync.NewCond(cnx)
@@ -156,7 +194,7 @@ func (c *connection) start() {
 	}()
 }
 
-func (c *connection) connect() (ok bool) {
+func (c *connection) connect() bool {
 	c.log.Info("Connecting to broker")
 
 	var (
@@ -167,7 +205,7 @@ func (c *connection) connect() (ok bool) {
 
 	if c.tlsOptions == nil {
 		// Clear text connection
-		cnx, err = net.Dial("tcp", c.physicalAddr.Host)
+		cnx, err = net.DialTimeout("tcp", c.physicalAddr.Host, c.connectionTimeout)
 	} else {
 		// TLS connection
 		tlsConfig, err = c.getTLSConfig()
@@ -176,7 +214,8 @@ func (c *connection) connect() (ok bool) {
 			return false
 		}
 
-		cnx, err = tls.Dial("tcp", c.physicalAddr.Host, tlsConfig)
+		d := &net.Dialer{Timeout: c.connectionTimeout}
+		cnx, err = tls.DialWithDialer(d, "tcp", c.physicalAddr.Host, tlsConfig)
 	}
 
 	if err != nil {
@@ -184,15 +223,19 @@ func (c *connection) connect() (ok bool) {
 		c.Close()
 		return false
 	}
+
+	c.Lock()
 	c.cnx = cnx
-	c.log = c.log.WithField("laddr", c.cnx.LocalAddr())
-	c.log.Debug("TCP connection established")
-	c.state = connectionTCPConnected
+	c.log = c.log.WithField("local_addr", c.cnx.LocalAddr())
+	c.log.Info("TCP connection established")
+	c.Unlock()
+
+	c.changeState(connectionTCPConnected)
 
 	return true
 }
 
-func (c *connection) doHandshake() (ok bool) {
+func (c *connection) doHandshake() bool {
 	// Send 'Connect' command to initiate handshake
 	version := int32(pb.ProtocolVersion_v13)
 
@@ -202,18 +245,28 @@ func (c *connection) doHandshake() (ok bool) {
 		return false
 	}
 
-	c.writeCommand(baseCommand(pb.BaseCommand_CONNECT, &pb.CommandConnect{
+	// During the initial handshake, the internal keep alive is not
+	// active yet, so we need to timeout write and read requests
+	c.cnx.SetDeadline(time.Now().Add(keepAliveInterval))
+	cmdConnect := &pb.CommandConnect{
 		ProtocolVersion: &version,
 		ClientVersion:   proto.String("Pulsar Go 0.1"),
 		AuthMethodName:  proto.String(c.auth.Name()),
 		AuthData:        authData,
-	}))
+	}
 
+	if c.logicalAddr.Host != c.physicalAddr.Host {
+		cmdConnect.ProxyToBrokerUrl = proto.String(c.logicalAddr.Host)
+	}
+	c.writeCommand(baseCommand(pb.BaseCommand_CONNECT, cmdConnect))
 	cmd, _, err := c.reader.readSingleCommand()
 	if err != nil {
 		c.log.WithError(err).Warn("Failed to perform initial handshake")
 		return false
 	}
+
+	// Reset the deadline so that we don't use read timeouts
+	c.cnx.SetDeadline(time.Time{})
 
 	if cmd.Connected == nil {
 		c.log.Warnf("Failed to perform initial handshake - Expecting 'Connected' cmd, got '%s'",
@@ -230,55 +283,69 @@ func (c *connection) waitUntilReady() error {
 	c.Lock()
 	defer c.Unlock()
 
-	for {
+	for c.state != connectionReady {
 		c.log.Debug("Wait until connection is ready. State: ", c.state)
-		switch c.state {
-		case connectionInit:
-			fallthrough
-		case connectionConnecting:
-			fallthrough
-		case connectionTCPConnected:
-			// Wait for the state to change
-			c.cond.Wait()
-
-		case connectionReady:
-			return nil
-
-		case connectionClosed:
+		if c.state == connectionClosed {
 			return errors.New("connection error")
 		}
+		// wait for a new connection state change
+		c.cond.Wait()
 	}
+
+	return nil
 }
 
 func (c *connection) run() {
 	// All reads come from the reader goroutine
 	go c.reader.readFromConnection()
+	go c.runPingCheck()
 
 	for {
 		select {
-		case req := <-c.incomingRequests:
+		case <-c.closeCh:
+			c.Close()
+			return
+
+		case req := <-c.incomingRequestsCh:
 			if req == nil {
 				return
 			}
-			c.mapMutex.Lock()
-			c.pendingReqs[req.id] = req
-			c.mapMutex.Unlock()
-			c.writeCommand(req.cmd)
+			c.internalSendRequest(req)
 
-		case data := <-c.writeRequests:
+		case cmd := <-c.incomingCmdCh:
+			c.internalReceivedCommand(cmd.cmd, cmd.headersAndPayload)
+
+		case data := <-c.writeRequestsCh:
 			if data == nil {
 				return
 			}
 			c.internalWriteData(data)
 
-		case _ = <-c.pingTicker.C:
+		case <-c.pingTicker.C:
 			c.sendPing()
 		}
 	}
 }
 
+func (c *connection) runPingCheck() {
+	for {
+		select {
+		case <-c.closeCh:
+			return
+		case <-c.pingCheckTicker.C:
+			if c.lastDataReceived().Add(2 * keepAliveInterval).Before(time.Now()) {
+				// We have not received a response to the previous Ping request, the
+				// connection to broker is stale
+				c.log.Warn("Detected stale connection to broker")
+				c.TriggerClose()
+				return
+			}
+		}
+	}
+}
+
 func (c *connection) WriteData(data []byte) {
-	c.writeRequests <- data
+	c.writeRequestsCh <- data
 }
 
 func (c *connection) internalWriteData(data []byte) {
@@ -295,6 +362,9 @@ func (c *connection) writeCommand(cmd proto.Message) {
 	cmdSize := uint32(proto.Size(cmd))
 	frameSize := cmdSize + 4
 
+	c.writeBufferLock.Lock()
+	defer c.writeBufferLock.Unlock()
+
 	c.writeBuffer.Clear()
 	c.writeBuffer.WriteUint32(frameSize)
 	c.writeBuffer.WriteUint32(cmdSize)
@@ -304,13 +374,17 @@ func (c *connection) writeCommand(cmd proto.Message) {
 	}
 
 	c.writeBuffer.Write(serialized)
-	c.internalWriteData(c.writeBuffer.ReadableSlice())
+	data := c.writeBuffer.ReadableSlice()
+	c.internalWriteData(data)
 }
 
-func (c *connection) receivedCommand(cmd *pb.BaseCommand, headersAndPayload []byte) {
+func (c *connection) receivedCommand(cmd *pb.BaseCommand, headersAndPayload Buffer) {
+	c.incomingCmdCh <- &incomingCmd{cmd, headersAndPayload}
+}
+
+func (c *connection) internalReceivedCommand(cmd *pb.BaseCommand, headersAndPayload Buffer) {
 	c.log.Debugf("Received command: %s -- payload: %v", cmd, headersAndPayload)
-	c.lastDataReceivedTime = time.Now()
-	var err error
+	c.setLastDataReceived(time.Now())
 
 	switch *cmd.Type {
 	case pb.BaseCommand_SUCCESS:
@@ -339,11 +413,8 @@ func (c *connection) receivedCommand(cmd *pb.BaseCommand, headersAndPayload []by
 		c.handleResponse(cmd.GetSchemaResponse.GetRequestId(), cmd)
 
 	case pb.BaseCommand_ERROR:
-		if cmd.Error != nil {
-			c.log.Errorf("Error: %s, Error Message: %s", cmd.Error.GetError(), cmd.Error.GetMessage())
-			c.Close()
-			return
-		}
+		c.handleResponseError(cmd.GetError())
+
 	case pb.BaseCommand_CLOSE_PRODUCER:
 		c.handleCloseProducer(cmd.GetCloseProducer())
 	case pb.BaseCommand_CLOSE_CONSUMER:
@@ -355,7 +426,8 @@ func (c *connection) receivedCommand(cmd *pb.BaseCommand, headersAndPayload []by
 	case pb.BaseCommand_SEND_ERROR:
 
 	case pb.BaseCommand_MESSAGE:
-		err = c.handleMessage(cmd.GetMessage(), headersAndPayload)
+		c.handleMessage(cmd.GetMessage(), headersAndPayload)
+
 	case pb.BaseCommand_PING:
 		c.handlePing()
 	case pb.BaseCommand_PONG:
@@ -364,34 +436,40 @@ func (c *connection) receivedCommand(cmd *pb.BaseCommand, headersAndPayload []by
 	case pb.BaseCommand_ACTIVE_CONSUMER_CHANGE:
 
 	default:
-		if err != nil {
-			c.log.Errorf("Received invalid command type: %s", cmd.Type)
-		}
+		c.log.Errorf("Received invalid command type: %s", cmd.Type)
 		c.Close()
 	}
 }
 
 func (c *connection) Write(data []byte) {
-	c.writeRequests <- data
+	c.writeRequestsCh <- data
 }
 
-func (c *connection) SendRequest(requestID uint64, req *pb.BaseCommand, callback func(command *pb.BaseCommand)) {
-	c.incomingRequests <- &request{
-		id:       requestID,
+func (c *connection) SendRequest(requestID uint64, req *pb.BaseCommand,
+	callback func(command *pb.BaseCommand, err error)) {
+	c.incomingRequestsCh <- &request{
+		id:       &requestID,
 		cmd:      req,
 		callback: callback,
 	}
 }
 
+func (c *connection) SendRequestNoWait(req *pb.BaseCommand) {
+	c.incomingRequestsCh <- &request{
+		id:       nil,
+		cmd:      req,
+		callback: nil,
+	}
+}
+
 func (c *connection) internalSendRequest(req *request) {
-	c.mapMutex.Lock()
-	c.pendingReqs[req.id] = req
-	c.mapMutex.Unlock()
+	if req.id != nil {
+		c.pendingReqs[*req.id] = req
+	}
 	c.writeCommand(req.cmd)
 }
 
 func (c *connection) handleResponse(requestID uint64, response *pb.BaseCommand) {
-	c.mapMutex.RLock()
 	request, ok := c.pendingReqs[requestID]
 	if !ok {
 		c.log.Warnf("Received unexpected response for request %d of type %s", requestID, response.Type)
@@ -399,12 +477,25 @@ func (c *connection) handleResponse(requestID uint64, response *pb.BaseCommand) 
 	}
 
 	delete(c.pendingReqs, requestID)
-	c.mapMutex.RUnlock()
-	request.callback(response)
+	request.callback(response, nil)
+}
+
+func (c *connection) handleResponseError(serverError *pb.CommandError) {
+	requestID := serverError.GetRequestId()
+	request, ok := c.pendingReqs[requestID]
+	if !ok {
+		c.log.Warnf("Received unexpected error response for request %d of type %s",
+			requestID, serverError.GetError())
+		return
+	}
+
+	delete(c.pendingReqs, requestID)
+
+	errMsg := fmt.Sprintf("server error: %s: %s", serverError.GetError(), serverError.GetMessage())
+	request.callback(nil, errors.New(errMsg))
 }
 
 func (c *connection) handleSendReceipt(response *pb.CommandSendReceipt) {
-	c.log.Debug("Got SEND_RECEIPT: ", response)
 	producerID := response.GetProducerId()
 	if producer, ok := c.listeners[producerID]; ok {
 		producer.ReceivedSendReceipt(response)
@@ -413,59 +504,64 @@ func (c *connection) handleSendReceipt(response *pb.CommandSendReceipt) {
 	}
 }
 
-func (c *connection) handleMessage(response *pb.CommandMessage, payload []byte) error {
+func (c *connection) handleMessage(response *pb.CommandMessage, payload Buffer) {
 	c.log.Debug("Got Message: ", response)
 	consumerID := response.GetConsumerId()
-	if consumer, ok := c.connWrapper.Consumers[consumerID]; ok {
+	if consumer, ok := c.consumerHandler(consumerID); ok {
 		err := consumer.MessageReceived(response, payload)
 		if err != nil {
 			c.log.WithField("consumerID", consumerID).Error("handle message err: ", response.MessageId)
-			return errors.New("handler not found")
 		}
 	} else {
 		c.log.WithField("consumerID", consumerID).Warn("Got unexpected message: ", response.MessageId)
 	}
-	return nil
+}
+
+func (c *connection) lastDataReceived() time.Time {
+	c.lastDataReceivedLock.Lock()
+	defer c.lastDataReceivedLock.Unlock()
+	t := c.lastDataReceivedTime
+	return t
+}
+
+func (c *connection) setLastDataReceived(t time.Time) {
+	c.lastDataReceivedLock.Lock()
+	defer c.lastDataReceivedLock.Unlock()
+	c.lastDataReceivedTime = t
 }
 
 func (c *connection) sendPing() {
-	if c.lastDataReceivedTime.Add(2 * keepAliveInterval).Before(time.Now()) {
-		// We have not received a response to the previous Ping request, the
-		// connection to broker is stale
-		c.log.Info("Detected stale connection to broker")
-		c.Close()
-		return
-	}
-
 	c.log.Debug("Sending PING")
 	c.writeCommand(baseCommand(pb.BaseCommand_PING, &pb.CommandPing{}))
 }
 
 func (c *connection) handlePong() {
-	c.writeCommand(baseCommand(pb.BaseCommand_PONG, &pb.CommandPong{}))
+	c.log.Debug("Received PONG response")
 }
 
 func (c *connection) handlePing() {
+	c.log.Debug("Responding to PING request")
 	c.writeCommand(baseCommand(pb.BaseCommand_PONG, &pb.CommandPong{}))
 }
 
 func (c *connection) handleCloseConsumer(closeConsumer *pb.CommandCloseConsumer) {
 	c.log.Infof("Broker notification of Closed consumer: %d", closeConsumer.GetConsumerId())
 	consumerID := closeConsumer.GetConsumerId()
-	if consumer, ok := c.connWrapper.Consumers[consumerID]; ok {
-		if !util.IsNil(consumer) {
-			consumer.ConnectionClosed()
-		}
+	if consumer, ok := c.consumerHandler(consumerID); ok {
+		consumer.ConnectionClosed()
+		delete(c.listeners, consumerID)
 	} else {
 		c.log.WithField("consumerID", consumerID).Warnf("Consumer with ID not found while closing consumer")
 	}
 }
 
 func (c *connection) handleCloseProducer(closeProducer *pb.CommandCloseProducer) {
-	c.log.Infof("Broker notification of Closed consumer: %d", closeProducer.GetProducerId())
+	c.log.Infof("Broker notification of Closed producer: %d", closeProducer.GetProducerId())
 	producerID := closeProducer.GetProducerId()
+
 	if producer, ok := c.listeners[producerID]; ok {
 		producer.ConnectionClosed()
+		delete(c.listeners, producerID)
 	} else {
 		c.log.WithField("producerID", producerID).Warn("Producer with ID not found while closing producer")
 	}
@@ -485,6 +581,23 @@ func (c *connection) UnregisterListener(id uint64) {
 	delete(c.listeners, id)
 }
 
+// Triggers the connection close by forcing the socket to close and
+// broadcasting the notification on the close channel
+func (c *connection) TriggerClose() {
+	cnx := c.cnx
+	if cnx != nil {
+		cnx.Close()
+	}
+
+	select {
+	case <-c.closeCh:
+		return
+	default:
+		close(c.closeCh)
+	}
+
+}
+
 func (c *connection) Close() {
 	c.Lock()
 	defer c.Unlock()
@@ -501,15 +614,25 @@ func (c *connection) Close() {
 		c.cnx.Close()
 	}
 	c.pingTicker.Stop()
-	close(c.incomingRequests)
-	close(c.writeRequests)
+	c.pingCheckTicker.Stop()
 
 	for _, listener := range c.listeners {
 		listener.ConnectionClosed()
 	}
 
-	for _, cnx := range c.connWrapper.Consumers {
-		cnx.ConnectionClosed()
+	for _, req := range c.pendingReqs {
+		req.callback(nil, errors.New("connection closed"))
+	}
+
+	consumerHandlers := make(map[uint64]ConsumerHandler)
+	c.consumerHandlersLock.RLock()
+	for id, handler := range c.consumerHandlers {
+		consumerHandlers[id] = handler
+	}
+	c.consumerHandlersLock.RUnlock()
+
+	for _, handler := range consumerHandlers {
+		handler.ConnectionClosed()
 	}
 }
 
@@ -558,25 +681,25 @@ func (c *connection) getTLSConfig() (*tls.Config, error) {
 	return tlsConfig, nil
 }
 
-type ConnWrapper struct {
-	Rwmu      sync.RWMutex
-	Consumers map[uint64]ConsumerHandler
-}
-
-func NewConnWrapper() *ConnWrapper {
-	return &ConnWrapper{
-		Consumers: make(map[uint64]ConsumerHandler),
-	}
-}
-
 func (c *connection) AddConsumeHandler(id uint64, handler ConsumerHandler) {
-	c.connWrapper.Rwmu.Lock()
-	c.connWrapper.Consumers[id] = handler
-	c.connWrapper.Rwmu.Unlock()
+	c.consumerHandlersLock.Lock()
+	defer c.consumerHandlersLock.Unlock()
+	c.consumerHandlers[id] = handler
 }
 
 func (c *connection) DeleteConsumeHandler(id uint64) {
-	c.connWrapper.Rwmu.Lock()
-	delete(c.connWrapper.Consumers, id)
-	c.connWrapper.Rwmu.Unlock()
+	c.consumerHandlersLock.Lock()
+	defer c.consumerHandlersLock.Unlock()
+	delete(c.consumerHandlers, id)
+}
+
+func (c *connection) consumerHandler(id uint64) (ConsumerHandler, bool) {
+	c.consumerHandlersLock.RLock()
+	defer c.consumerHandlersLock.RUnlock()
+	h, ok := c.consumerHandlers[id]
+	return h, ok
+}
+
+func (c *connection) ID() string {
+	return fmt.Sprintf("%s -> %s", c.cnx.LocalAddr(), c.cnx.RemoteAddr())
 }

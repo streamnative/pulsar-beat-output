@@ -20,8 +20,9 @@ package internal
 import (
 	"net/url"
 	"sync"
+	"time"
 
-	"github.com/apache/pulsar-client-go/pkg/auth"
+	"github.com/apache/pulsar-client-go/pulsar/internal/auth"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -36,16 +37,18 @@ type ConnectionPool interface {
 }
 
 type connectionPool struct {
-	pool       sync.Map
-	tlsOptions *TLSOptions
-	auth       auth.Provider
+	pool              sync.Map
+	connectionTimeout time.Duration
+	tlsOptions        *TLSOptions
+	auth              auth.Provider
 }
 
 // NewConnectionPool init connection pool.
-func NewConnectionPool(tlsOptions *TLSOptions, auth auth.Provider) ConnectionPool {
+func NewConnectionPool(tlsOptions *TLSOptions, auth auth.Provider, connectionTimeout time.Duration) ConnectionPool {
 	return &connectionPool{
-		tlsOptions: tlsOptions,
-		auth:       auth,
+		tlsOptions:        tlsOptions,
+		auth:              auth,
+		connectionTimeout: connectionTimeout,
 	}
 }
 
@@ -65,11 +68,13 @@ func (p *connectionPool) GetConnection(logicalAddr *url.URL, physicalAddr *url.U
 	}
 
 	// Try to create a new connection
-	newCnx, wasCached := p.pool.LoadOrStore(logicalAddr.Host,
-		newConnection(logicalAddr, physicalAddr, p.tlsOptions, p.auth))
+	newConnection := newConnection(logicalAddr, physicalAddr, p.tlsOptions, p.connectionTimeout, p.auth)
+	newCnx, wasCached := p.pool.LoadOrStore(logicalAddr.Host, newConnection)
 	cnx := newCnx.(*connection)
 	if !wasCached {
 		cnx.start()
+	} else {
+		newConnection.Close()
 	}
 
 	if err := cnx.waitUntilReady(); err != nil {

@@ -63,26 +63,9 @@ type ProducerOptions struct {
 	// This properties will be visible in the topic stats
 	Properties map[string]string
 
-	// SendTimeout set the send timeout (default: 30 seconds)
-	// If a message is not acknowledged by the server before the sendTimeout expires, an error will be reported.
-	// Setting the timeout to -1, will set the timeout to infinity, which can be useful when using Pulsar's message
-	// duplication feature.
-	SendTimeout time.Duration
-
-	// MaxPendingMessages set the max size of the queue holding the messages pending to receive an acknowledgment from the broker.
-	// When the queue is full, by default, all calls to Producer.send() and Producer.sendAsync() will fail
-	// unless `BlockIfQueueFull` is set to true. Use BlockIfQueueFull(boolean) to change the blocking behavior.
+	// MaxPendingMessages set the max size of the queue holding the messages pending to receive an
+	// acknowledgment from the broker.
 	MaxPendingMessages int
-
-	// MaxPendingMessagesAcrossPartitions set the number of max pending messages across all the partitions
-	// This setting will be used to lower the max pending messages for each partition
-	// `MaxPendingMessages(int)`, if the total exceeds the configured value.
-	MaxPendingMessagesAcrossPartitions int
-
-	// BlockIfQueueFull set whether the `Producer.Send()` and `Producer.sendAsync()` operations should block when the outgoing
-	// message queue is full. Default is `false`. If set to `false`, send operations will immediately fail with
-	// `ProducerQueueIsFullError` when there is no space left in pending queue.
-	BlockIfQueueFull bool
 
 	// HashingScheme change the `HashingScheme` used to chose the partition on where to publish a particular message.
 	// Standard hashing functions available are:
@@ -119,12 +102,14 @@ type ProducerOptions struct {
 	// Setting `DisableBatching: true` will make the producer to send messages individually
 	DisableBatching bool
 
-	// BatchingMaxPublishDelay set the time period within which the messages sent will be batched (default: 10ms) if batch messages are
-	// enabled. If set to a non zero value, messages will be queued until this time interval or until
+	// BatchingMaxPublishDelay set the time period within which the messages sent will be batched (default: 10ms)
+	// if batch messages are enabled. If set to a non zero value, messages will be queued until this time
+	// interval or until
 	BatchingMaxPublishDelay time.Duration
 
-	// BatchingMaxMessages set the maximum number of messages permitted in a batch. (default: 1000) If set to a value greater than 1,
-	// messages will be queued until this threshold is reached or batch interval has elapsed
+	// BatchingMaxMessages set the maximum number of messages permitted in a batch. (default: 1000)
+	// If set to a value greater than 1, messages will be queued until this threshold is reached or
+	// batch interval has elapsed.
 	BatchingMaxMessages uint
 }
 
@@ -140,7 +125,7 @@ type Producer interface {
 	// This call will be blocking until is successfully acknowledged by the Pulsar broker.
 	// Example:
 	// producer.Send(ctx, pulsar.ProducerMessage{ Payload: myPayload })
-	Send(context.Context, *ProducerMessage) error
+	Send(context.Context, *ProducerMessage) (MessageID, error)
 
 	// SendAsync a message in asynchronous mode
 	// The callback will report back the message being published and
@@ -162,5 +147,5 @@ type Producer interface {
 	// Close the producer and releases resources allocated
 	// No more writes will be accepted from this producer. Waits until all pending write request are persisted. In case
 	// of errors, pending writes will not be retried.
-	Close() error
+	Close()
 }

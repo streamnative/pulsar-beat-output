@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"log"
 
-    "github.com/apache/pulsar-client-go/pulsar"
+	"github.com/apache/pulsar-client-go/pulsar"
 )
 
 func main() {
@@ -52,9 +52,7 @@ func main() {
 		fmt.Printf("Received message msgId: %#v -- content: '%s'\n",
 			msg.ID(), string(msg.Payload()))
 
-		if err := consumer.Ack(msg); err != nil {
-			log.Fatal(err)
-		}
+		consumer.Ack(msg)
 	}
 
 	if err := consumer.Unsubscribe(); err != nil {
