@@ -20,7 +20,7 @@ package pulsar
 import (
 	"time"
 
-	"github.com/apache/pulsar-client-go/pkg/auth"
+	"github.com/apache/pulsar-client-go/pulsar/internal/auth"
 )
 
 func NewClient(options ClientOptions) (Client, error) {
@@ -39,6 +39,14 @@ func NewAuthenticationToken(token string) Authentication {
 	return auth.NewAuthenticationToken(token)
 }
 
+// NewAuthenticationTokenFromSupplier returns a token auth provider that
+// gets the token data from a user supplied function. The function is
+// invoked each time the client library needs to use a token in talking
+// with Pulsar brokers
+func NewAuthenticationTokenFromSupplier(tokenSupplier func() (string, error)) Authentication {
+	return auth.NewAuthenticationTokenFromSupplier(tokenSupplier)
+}
+
 // Create new Authentication provider with specified auth token from a file
 func NewAuthenticationTokenFromFile(tokenFilePath string) Authentication {
 	return auth.NewAuthenticationTokenFromFile(tokenFilePath)
@@ -49,18 +57,13 @@ func NewAuthenticationTLS(certificatePath string, privateKeyPath string) Authent
 	return auth.NewAuthenticationTLS(certificatePath, privateKeyPath)
 }
 
-// Create new Athenz Authentication provider with configuration in JSON form
-func NewAuthenticationAthenz(authParams string) Authentication {
-	// TODO: return newAuthenticationAthenz(authParams)
-	return nil
-}
-
 // Builder interface that is used to construct a Pulsar Client instance.
 type ClientOptions struct {
 	// Configure the service URL for the Pulsar service.
 	// This parameter is required
 	URL string
 
+	// Timeout for the establishment of a TCP connection (default: 30 seconds)
 	ConnectionTimeout time.Duration
 
 	// Set the operation timeout (default: 30 seconds)
@@ -108,5 +111,5 @@ type Client interface {
 	TopicPartitions(topic string) ([]string, error)
 
 	// Close the Client and free associated resources
-	Close() error
+	Close()
 }

@@ -9,5 +9,8 @@
 
 # Output of the go coverage tool
 *.out
+coverage.html
 
 perf/perf
+pulsar-perf
+bin

@@ -25,7 +25,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/apache/pulsar-client-go/util"
+	"github.com/apache/pulsar-client-go/pulsar/internal"
 	"github.com/stretchr/testify/assert"
 
 	log "github.com/sirupsen/logrus"
@@ -85,6 +85,7 @@ func TestSimpleProducer(t *testing.T) {
 		URL: serviceURL,
 	})
 	assert.NoError(t, err)
+	defer client.Close()
 
 	producer, err := client.CreateProducer(ProducerOptions{
 		Topic: newTopicName(),
@@ -92,20 +93,16 @@ func TestSimpleProducer(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.NotNil(t, producer)
+	defer producer.Close()
 
 	for i := 0; i < 10; i++ {
-		err = producer.Send(context.Background(), &ProducerMessage{
+		ID, err := producer.Send(context.Background(), &ProducerMessage{
 			Payload: []byte("hello"),
 		})
 
 		assert.NoError(t, err)
+		assert.NotNil(t, ID)
 	}
-
-	err = producer.Close()
-	assert.NoError(t, err)
-
-	err = client.Close()
-	assert.NoError(t, err)
 }
 
 func TestProducerAsyncSend(t *testing.T) {
@@ -113,6 +110,7 @@ func TestProducerAsyncSend(t *testing.T) {
 		URL: serviceURL,
 	})
 	assert.NoError(t, err)
+	defer client.Close()
 
 	producer, err := client.CreateProducer(ProducerOptions{
 		Topic:                   newTopicName(),
@@ -121,10 +119,11 @@ func TestProducerAsyncSend(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.NotNil(t, producer)
+	defer producer.Close()
 
 	wg := sync.WaitGroup{}
 	wg.Add(10)
-	errors := util.NewBlockingQueue(10)
+	errors := internal.NewBlockingQueue(10)
 
 	for i := 0; i < 10; i++ {
 		producer.SendAsync(context.Background(), &ProducerMessage{
@@ -148,12 +147,6 @@ func TestProducerAsyncSend(t *testing.T) {
 	wg.Wait()
 
 	assert.Equal(t, 0, errors.Size())
-
-	err = producer.Close()
-	assert.NoError(t, err)
-
-	err = client.Close()
-	assert.NoError(t, err)
 }
 
 func TestProducerCompression(t *testing.T) {
@@ -176,6 +169,7 @@ func TestProducerCompression(t *testing.T) {
 				URL: serviceURL,
 			})
 			assert.NoError(t, err)
+			defer client.Close()
 
 			producer, err := client.CreateProducer(ProducerOptions{
 				Topic:           newTopicName(),
@@ -184,20 +178,16 @@ func TestProducerCompression(t *testing.T) {
 
 			assert.NoError(t, err)
 			assert.NotNil(t, producer)
+			defer producer.Close()
 
 			for i := 0; i < 10; i++ {
-				err = producer.Send(context.Background(), &ProducerMessage{
+				ID, err := producer.Send(context.Background(), &ProducerMessage{
 					Payload: []byte("hello"),
 				})
 
 				assert.NoError(t, err)
+				assert.NotNil(t, ID)
 			}
-
-			err = producer.Close()
-			assert.NoError(t, err)
-
-			err = client.Close()
-			assert.NoError(t, err)
 		})
 	}
 }
@@ -207,6 +197,7 @@ func TestProducerLastSequenceID(t *testing.T) {
 		URL: serviceURL,
 	})
 	assert.NoError(t, err)
+	defer client.Close()
 
 	producer, err := client.CreateProducer(ProducerOptions{
 		Topic: newTopicName(),
@@ -214,23 +205,19 @@ func TestProducerLastSequenceID(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.NotNil(t, producer)
+	defer producer.Close()
 
 	assert.Equal(t, int64(-1), producer.LastSequenceID())
 
 	for i := 0; i < 10; i++ {
-		err = producer.Send(context.Background(), &ProducerMessage{
+		ID, err := producer.Send(context.Background(), &ProducerMessage{
 			Payload: []byte("hello"),
 		})
 
 		assert.NoError(t, err)
+		assert.NotNil(t, ID)
 		assert.Equal(t, int64(i), producer.LastSequenceID())
 	}
-
-	err = producer.Close()
-	assert.NoError(t, err)
-
-	err = client.Close()
-	assert.NoError(t, err)
 }
 
 func TestEventTime(t *testing.T) {
@@ -255,11 +242,12 @@ func TestEventTime(t *testing.T) {
 	defer consumer.Close()
 
 	eventTime := timeFromUnixTimestampMillis(uint64(1565161612))
-	err = producer.Send(context.Background(), &ProducerMessage{
+	ID, err := producer.Send(context.Background(), &ProducerMessage{
 		Payload:   []byte(fmt.Sprintf("test-event-time")),
 		EventTime: &eventTime,
 	})
 	assert.Nil(t, err)
+	assert.NotNil(t, ID)
 
 	msg, err := consumer.Receive(context.Background())
 	assert.Nil(t, err)
@@ -285,7 +273,6 @@ func TestFlushInProducer(t *testing.T) {
 		DisableBatching:         false,
 		BatchingMaxMessages:     uint(numOfMessages),
 		BatchingMaxPublishDelay: time.Second * 10,
-		BlockIfQueueFull:        true,
 		Properties: map[string]string{
 			"producer-name": "test-producer-name",
 			"producer-id":   "test-producer-id",
@@ -306,7 +293,7 @@ func TestFlushInProducer(t *testing.T) {
 
 	wg := sync.WaitGroup{}
 	wg.Add(5)
-	errors := util.NewBlockingQueue(10)
+	errors := internal.NewBlockingQueue(10)
 	for i := 0; i < numOfMessages/2; i++ {
 		messageContent := prefix + fmt.Sprintf("%d", i)
 		producer.SendAsync(ctx, &ProducerMessage{
@@ -396,15 +383,15 @@ func TestFlushInPartitionedProducer(t *testing.T) {
 		DisableBatching:         false,
 		BatchingMaxMessages:     uint(numOfMessages / numberOfPartitions),
 		BatchingMaxPublishDelay: time.Second * 10,
-		BlockIfQueueFull:        true,
 	})
+	assert.Nil(t, err)
 	defer producer.Close()
 
 	// send 5 messages
 	prefix := "msg-batch-async-"
 	wg := sync.WaitGroup{}
 	wg.Add(5)
-	errors := util.NewBlockingQueue(5)
+	errors := internal.NewBlockingQueue(5)
 	for i := 0; i < numOfMessages/2; i++ {
 		messageContent := prefix + fmt.Sprintf("%d", i)
 		producer.SendAsync(ctx, &ProducerMessage{
@@ -434,8 +421,7 @@ func TestFlushInPartitionedProducer(t *testing.T) {
 		fmt.Printf("Received message msgId: %#v -- content: '%s'\n",
 			msg.ID(), string(msg.Payload()))
 		assert.Nil(t, err)
-		err = consumer.Ack(msg)
-		assert.Nil(t, err)
+		consumer.Ack(msg)
 		msgCount++
 	}
 	assert.Equal(t, msgCount, numOfMessages/2)
@@ -443,7 +429,10 @@ func TestFlushInPartitionedProducer(t *testing.T) {
 
 func TestMessageRouter(t *testing.T) {
 	// Create topic with 5 partitions
-	httpPut("http://localhost:8080/admin/v2/persistent/public/default/my-partitioned-topic/partitions", 5)
+	err := httpPut("admin/v2/persistent/public/default/my-partitioned-topic/partitions", 5)
+	if err != nil {
+		t.Fatal(err)
+	}
 	client, err := NewClient(ClientOptions{
 		URL: serviceURL,
 	})
@@ -473,10 +462,11 @@ func TestMessageRouter(t *testing.T) {
 
 	ctx := context.Background()
 
-	err = producer.Send(ctx, &ProducerMessage{
+	ID, err := producer.Send(ctx, &ProducerMessage{
 		Payload: []byte("hello"),
 	})
 	assert.Nil(t, err)
+	assert.NotNil(t, ID)
 
 	fmt.Println("PUBLISHED")
 
@@ -508,4 +498,216 @@ func TestNonPersistentTopic(t *testing.T) {
 	})
 	assert.Nil(t, err)
 	defer consumer.Close()
+}
+
+func TestProducerDuplicateNameOnSameTopic(t *testing.T) {
+	client, err := NewClient(ClientOptions{
+		URL: serviceURL,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+
+	topicName := newTopicName()
+	producerName := "my-producer"
+
+	p1, err := client.CreateProducer(ProducerOptions{
+		Topic: topicName,
+		Name:  producerName,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p1.Close()
+
+	_, err = client.CreateProducer(ProducerOptions{
+		Topic: topicName,
+		Name:  producerName,
+	})
+	assert.NotNil(t, err, "expected error when creating producer with same name")
+}
+
+func TestProducerMetadata(t *testing.T) {
+	client, err := NewClient(ClientOptions{
+		URL: lookupURL,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+
+	topic := newTopicName()
+	props := map[string]string{
+		"key1": "value1",
+	}
+	producer, err := client.CreateProducer(ProducerOptions{
+		Topic:      topic,
+		Name:       "my-producer",
+		Properties: props,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer producer.Close()
+	stats, err := topicStats(topic)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	meta := stats["publishers"].([]interface{})[0].(map[string]interface{})["metadata"].(map[string]interface{})
+	assert.Equal(t, len(props), len(meta))
+	for k, v := range props {
+		mv := meta[k].(string)
+		assert.Equal(t, v, mv)
+	}
+}
+
+// test for issues #76, #114 and #123
+func TestBatchMessageFlushing(t *testing.T) {
+	client, err := NewClient(ClientOptions{
+		URL: lookupURL,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+
+	topic := newTopicName()
+	producer, err := client.CreateProducer(ProducerOptions{
+		Topic: topic,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer producer.Close()
+
+	maxBytes := internal.MaxBatchSize
+	genbytes := func(n int) []byte {
+		c := []byte("a")[0]
+		bytes := make([]byte, n)
+		for i := 0; i < n; i++ {
+			bytes[i] = c
+		}
+		return bytes
+	}
+
+	msgs := [][]byte{
+		genbytes(maxBytes - 10),
+		genbytes(11),
+	}
+
+	ch := make(chan struct{}, 2)
+	ctx := context.Background()
+	for _, msg := range msgs {
+		msg := &ProducerMessage{
+			Payload: msg,
+		}
+		producer.SendAsync(ctx, msg, func(id MessageID, producerMessage *ProducerMessage, err error) {
+			ch <- struct{}{}
+		})
+	}
+
+	published := 0
+	keepGoing := true
+	for keepGoing {
+		select {
+		case <-ch:
+			published++
+			if published == 2 {
+				keepGoing = false
+			}
+		case <-time.After(defaultBatchingMaxPublishDelay * 10):
+			fmt.Println("TestBatchMessageFlushing timeout waiting to publish messages")
+			keepGoing = false
+		}
+	}
+
+	assert.Equal(t, 2, published, "expected to publish two messages")
+}
+
+func TestDelayRelative(t *testing.T) {
+	client, err := NewClient(ClientOptions{
+		URL: serviceURL,
+	})
+	assert.NoError(t, err)
+	defer client.Close()
+
+	topicName := newTopicName()
+	producer, err := client.CreateProducer(ProducerOptions{
+		Topic: topicName,
+	})
+	assert.Nil(t, err)
+	defer producer.Close()
+
+	consumer, err := client.Subscribe(ConsumerOptions{
+		Topic:            topicName,
+		SubscriptionName: "subName",
+		Type:             Shared,
+	})
+	assert.Nil(t, err)
+	defer consumer.Close()
+
+	ID, err := producer.Send(context.Background(), &ProducerMessage{
+		Payload:      []byte(fmt.Sprintf("test")),
+		DeliverAfter: 3 * time.Second,
+	})
+	assert.Nil(t, err)
+	assert.NotNil(t, ID)
+
+	ctx, canc := context.WithTimeout(context.Background(), 1*time.Second)
+
+	msg, err := consumer.Receive(ctx)
+	assert.Error(t, err)
+	assert.Nil(t, msg)
+	canc()
+
+	ctx, canc = context.WithTimeout(context.Background(), 5*time.Second)
+	msg, err = consumer.Receive(ctx)
+	assert.Nil(t, err)
+	assert.NotNil(t, msg)
+	canc()
+}
+
+func TestDelayAbsolute(t *testing.T) {
+	client, err := NewClient(ClientOptions{
+		URL: serviceURL,
+	})
+	assert.NoError(t, err)
+	defer client.Close()
+
+	topicName := newTopicName()
+	producer, err := client.CreateProducer(ProducerOptions{
+		Topic: topicName,
+	})
+	assert.Nil(t, err)
+	defer producer.Close()
+
+	consumer, err := client.Subscribe(ConsumerOptions{
+		Topic:            topicName,
+		SubscriptionName: "subName",
+		Type:             Shared,
+	})
+	assert.Nil(t, err)
+	defer consumer.Close()
+
+	ID, err := producer.Send(context.Background(), &ProducerMessage{
+		Payload:   []byte(fmt.Sprintf("test")),
+		DeliverAt: time.Now().Add(3 * time.Second),
+	})
+	assert.Nil(t, err)
+	assert.NotNil(t, ID)
+
+	ctx, canc := context.WithTimeout(context.Background(), 1*time.Second)
+
+	msg, err := consumer.Receive(ctx)
+	assert.Error(t, err)
+	assert.Nil(t, msg)
+	canc()
+
+	ctx, canc = context.WithTimeout(context.Background(), 5*time.Second)
+	msg, err = consumer.Receive(ctx)
+	assert.Nil(t, err)
+	assert.NotNil(t, msg)
+	canc()
 }

@@ -29,7 +29,7 @@ imports:
   - types/rand
   - utils/buffer
 - name: github.com/apache/pulsar-client-go
-  version: de147fa4f37447ea4207bda2f64b5e858941993b
+  version: 9b739cf9d098a0a2f51307027f7985e7f3d1ab95
   subpackages:
   - pkg/auth
   - pkg/compression

@@ -18,12 +18,16 @@
 package internal
 
 import (
+	"errors"
 	"net/url"
 	"sync"
 	"sync/atomic"
+	"time"
 
-	"github.com/apache/pulsar-client-go/pkg/pb"
+	"github.com/apache/pulsar-client-go/pulsar/internal/pb"
 	"github.com/golang/protobuf/proto"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type RPCResult struct {
@@ -45,7 +49,7 @@ type RPCClient interface {
 	Request(logicalAddr *url.URL, physicalAddr *url.URL, requestID uint64,
 		cmdType pb.BaseCommand_Type, message proto.Message) (*RPCResult, error)
 
-	RequestOnCnxNoWait(cnx Connection, requestID uint64, cmdType pb.BaseCommand_Type, message proto.Message) (*RPCResult, error)
+	RequestOnCnxNoWait(cnx Connection, cmdType pb.BaseCommand_Type, message proto.Message)
 
 	RequestOnCnx(cnx Connection, requestID uint64, cmdType pb.BaseCommand_Type, message proto.Message) (*RPCResult, error)
 }
@@ -53,45 +57,76 @@ type RPCClient interface {
 type rpcClient struct {
 	serviceURL          *url.URL
 	pool                ConnectionPool
+	requestTimeout      time.Duration
 	requestIDGenerator  uint64
 	producerIDGenerator uint64
 	consumerIDGenerator uint64
+
+	log *log.Entry
 }
 
-func NewRPCClient(serviceURL *url.URL, pool ConnectionPool) RPCClient {
+func NewRPCClient(serviceURL *url.URL, pool ConnectionPool, requestTimeout time.Duration) RPCClient {
 	return &rpcClient{
-		serviceURL: serviceURL,
-		pool:       pool,
+		serviceURL:     serviceURL,
+		pool:           pool,
+		requestTimeout: requestTimeout,
+		log:            log.WithField("serviceURL", serviceURL),
 	}
 }
 
-func (c *rpcClient) RequestToAnyBroker(requestID uint64, cmdType pb.BaseCommand_Type, message proto.Message) (*RPCResult, error) {
+func (c *rpcClient) RequestToAnyBroker(requestID uint64, cmdType pb.BaseCommand_Type,
+	message proto.Message) (*RPCResult, error) {
 	return c.Request(c.serviceURL, c.serviceURL, requestID, cmdType, message)
 }
 
 func (c *rpcClient) Request(logicalAddr *url.URL, physicalAddr *url.URL, requestID uint64,
 	cmdType pb.BaseCommand_Type, message proto.Message) (*RPCResult, error) {
-	// TODO: Add retry logic in case of connection issues
-	cnx, err := c.pool.GetConnection(logicalAddr, physicalAddr)
+	cnx, err := c.getConn(logicalAddr, physicalAddr)
 	if err != nil {
 		return nil, err
 	}
 
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-
-	rpcResult := &RPCResult{
-		Cnx: cnx,
+	type Res struct {
+		*RPCResult
+		error
 	}
+	ch := make(chan Res, 10)
 
-	// TODO: Handle errors with disconnections
-	cnx.SendRequest(requestID, baseCommand(cmdType, message), func(response *pb.BaseCommand) {
-		rpcResult.Response = response
-		wg.Done()
+	// TODO: in here, the error of callback always nil
+	cnx.SendRequest(requestID, baseCommand(cmdType, message), func(response *pb.BaseCommand, err error) {
+		ch <- Res{&RPCResult{
+			Cnx:      cnx,
+			Response: response,
+		}, err}
+		close(ch)
 	})
 
-	wg.Wait()
-	return rpcResult, nil
+	select {
+	case res := <-ch:
+		return res.RPCResult, res.error
+	case <-time.After(c.requestTimeout):
+		return nil, errors.New("request timed out")
+	}
+}
+
+func (c *rpcClient) getConn(logicalAddr *url.URL, physicalAddr *url.URL) (Connection, error) {
+	cnx, err := c.pool.GetConnection(logicalAddr, physicalAddr)
+	backoff := new(Backoff)
+	var retryTime time.Duration
+	if err != nil {
+		for retryTime < c.requestTimeout {
+			retryTime = backoff.Next()
+			c.log.Debugf("Reconnecting to broker in {%v}", retryTime)
+			time.Sleep(retryTime)
+			cnx, err = c.pool.GetConnection(logicalAddr, physicalAddr)
+			if err == nil {
+				c.log.Debugf("retry connection success")
+				return cnx, nil
+			}
+		}
+		return nil, err
+	}
+	return cnx, nil
 }
 
 func (c *rpcClient) RequestOnCnx(cnx Connection, requestID uint64, cmdType pb.BaseCommand_Type,
@@ -103,26 +138,19 @@ func (c *rpcClient) RequestOnCnx(cnx Connection, requestID uint64, cmdType pb.Ba
 		Cnx: cnx,
 	}
 
-	cnx.SendRequest(requestID, baseCommand(cmdType, message), func(response *pb.BaseCommand) {
+	var rpcErr error
+	cnx.SendRequest(requestID, baseCommand(cmdType, message), func(response *pb.BaseCommand, err error) {
 		rpcResult.Response = response
+		rpcErr = err
 		wg.Done()
 	})
 
 	wg.Wait()
-	return rpcResult, nil
+	return rpcResult, rpcErr
 }
 
-func (c *rpcClient) RequestOnCnxNoWait(cnx Connection, requestID uint64, cmdType pb.BaseCommand_Type,
-	message proto.Message) (*RPCResult, error) {
-	rpcResult := &RPCResult{
-		Cnx: cnx,
-	}
-
-	cnx.SendRequest(requestID, baseCommand(cmdType, message), func(response *pb.BaseCommand) {
-		rpcResult.Response = response
-	})
-
-	return rpcResult, nil
+func (c *rpcClient) RequestOnCnxNoWait(cnx Connection, cmdType pb.BaseCommand_Type, message proto.Message) {
+	cnx.SendRequestNoWait(baseCommand(cmdType, message))
 }
 
 func (c *rpcClient) NewRequestID() uint64 {

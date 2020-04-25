@@ -33,7 +33,7 @@ type pulsarConfig struct {
 	OperationTimeoutSeconds    time.Duration `config:"operation_timeout_seconds"`
 	MessageListenerThreads     int           `config:"message_listener_threads"`
 	ConcurrentLookupRequests   int           `config:"concurrent_lookup_requests"`
-	UseTLS                    bool          `config:"use_tls"`
+	UseTLS                     bool          `config:"use_tls"`
 	TLSTrustCertsFilePath      string        `config:"tls_trust_certs_file_path"`
 	TLSAllowInsecureConnection bool          `config:"tls_allow_insecure_connection"`
 	CertificatePath            string        `config:"certificate_path"`
@@ -44,18 +44,18 @@ type pulsarConfig struct {
 	BulkMaxSize int          `config:"bulk_max_size"`
 	MaxRetries  int          `config:"max_retries" validate:"min=-1,nonzero"`
 
-	Topic                              string                    `config:"topic"`
-	Name                               string                    `config:"name"`
-	Properties                         map[string]string         `config:"properties"`
-	SendTimeout                        time.Duration             `config:"send_timeout"`
-	MaxPendingMessages                 int                       `config:"max_pending_messages"`
-	MaxPendingMessagesAcrossPartitions int                       `config:"max_pending_messages_accross_partitions"`
-	BlockIfQueueFull                   bool                      `config:"block_if_queue_full"`
-	HashingScheme                      pulsar.HashingScheme      `config:"hashing_schema"`
-	CompressionType                    pulsar.CompressionType    `config:"compression_type"`
-	Batching                           bool                      `config:"batching"`
-	BatchingMaxPublishDelay            time.Duration             `config:"batching_max_publish_delay"`
-	BatchingMaxMessages                uint                      `config:"batching_max_messages"`
+	Topic                              string                 `config:"topic"`
+	Name                               string                 `config:"name"`
+	Properties                         map[string]string      `config:"properties"`
+	SendTimeout                        time.Duration          `config:"send_timeout"`
+	MaxPendingMessages                 int                    `config:"max_pending_messages"`
+	MaxPendingMessagesAcrossPartitions int                    `config:"max_pending_messages_accross_partitions"`
+	BlockIfQueueFull                   bool                   `config:"block_if_queue_full"`
+	HashingScheme                      pulsar.HashingScheme   `config:"hashing_schema"`
+	CompressionType                    pulsar.CompressionType `config:"compression_type"`
+	Batching                           bool                   `config:"batching"`
+	BatchingMaxPublishDelay            time.Duration          `config:"batching_max_publish_delay"`
+	BatchingMaxMessages                uint                   `config:"batching_max_messages"`
 }
 
 func defaultConfig() pulsarConfig {
@@ -99,7 +99,7 @@ func initOptions(
 ) (pulsar.ClientOptions, pulsar.ProducerOptions, error) {
 	config.Validate()
 	clientOptions := pulsar.ClientOptions{
-		URL:       config.URL,
+		URL: config.URL,
 	}
 	if config.UseTLS {
 		clientOptions.TLSTrustCertsFilePath = config.TLSTrustCertsFilePath
@@ -132,21 +132,25 @@ func initOptions(
 	if len(config.Name) > 0 {
 		producerOptions.Name = config.Name
 	}
-	if config.SendTimeout > 0 {
-		producerOptions.SendTimeout = config.SendTimeout * time.Second
-	}
+	//  this version producerOptions has not  this field
+	//if config.SendTimeout > 0 {
+	//	producerOptions.SendTimeout = config.SendTimeout * time.Second
+	//}
 	if len(config.Properties) > 0 {
 		producerOptions.Properties = config.Properties
 	}
 	if config.MaxPendingMessages > 0 {
 		producerOptions.MaxPendingMessages = config.MaxPendingMessages
 	}
-	if config.MaxPendingMessagesAcrossPartitions > 0 {
-		producerOptions.MaxPendingMessagesAcrossPartitions = config.MaxPendingMessagesAcrossPartitions
-	}
-	if config.BlockIfQueueFull {
-		producerOptions.BlockIfQueueFull = config.BlockIfQueueFull
-	}
+	/*
+		// this version producerOptions has not  this field
+		if config.MaxPendingMessagesAcrossPartitions > 0 {
+			producerOptions.MaxPendingMessagesAcrossPartitions = config.MaxPendingMessagesAcrossPartitions
+		}
+		if config.BlockIfQueueFull {
+			producerOptions.BlockIfQueueFull = config.BlockIfQueueFull
+		}
+	*/
 	if config.HashingScheme > 0 {
 		producerOptions.HashingScheme = config.HashingScheme
 	}

@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/apache/pulsar-client-go/pkg/pb"
+	"github.com/apache/pulsar-client-go/pulsar/internal/pb"
 	"github.com/golang/protobuf/proto"
 
 	log "github.com/sirupsen/logrus"
@@ -54,7 +54,8 @@ func NewLookupService(rpcClient RPCClient, serviceURL *url.URL) LookupService {
 	}
 }
 
-func (ls *lookupService) getBrokerAddress(lr *pb.CommandLookupTopicResponse) (logicalAddress *url.URL, physicalAddress *url.URL, err error) {
+func (ls *lookupService) getBrokerAddress(lr *pb.CommandLookupTopicResponse) (logicalAddress *url.URL,
+	physicalAddress *url.URL, err error) {
 	logicalAddress, err = url.ParseRequestURI(lr.GetBrokerServiceUrl())
 	if err != nil {
 		return nil, nil, err
