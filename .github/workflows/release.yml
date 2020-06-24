@@ -13,13 +13,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       -
-        name: Checkout
-        uses: actions/checkout@v2
-      -
-        name: Unshallow
-        run: git fetch --prune --unshallow
-
-      -
         name: Set up Go
         uses: actions/setup-go@v1
         with:
@@ -30,9 +23,18 @@ jobs:
         run: |
             export GOPATH=/home/runner/work/go
             mkdir -p $GOPATH/src/github.com/streamnative/ &&
-            git clone https://{{ secrets.BEAT_ACCESS_TOKEN }}@github.com/streamnative/pulsar-beat-output.git $GOPATH/src/github.com/streamnative/pulsar-beat-output &&
             cd $GOPATH/src/github.com/streamnative/pulsar-beat-output/ &&
             ls -la
+
+      -
+        name: Checkout
+        uses: actions/checkout@v2
+        with:
+            path: go/src/github.com/streamnative
+
+      -
+        name: Unshallow
+        run: git fetch --prune --unshallow
     
       -
         name: Run GoReleaser
