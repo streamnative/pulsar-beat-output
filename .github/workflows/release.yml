@@ -36,7 +36,8 @@ jobs:
         run: |
             mkdir -p go/src/github.com/streamnative/pulsar-beat-output
             cd go/src/github.com/streamnative/pulsar-beat-output &&
-            git fetch --prune --unshallow
+            git fetch --prune --unshallow &&
+            ls -la
 
       -
         name: Debug
@@ -53,3 +54,4 @@ jobs:
           args: release --rm-dist --release-notes=docs/release-note.md --release-header=docs/release-header.md
         env:
           GITHUB_TOKEN: ${{ secrets.BEAT_ACCESS_TOKEN }}
+        
