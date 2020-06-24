@@ -27,7 +27,10 @@ jobs:
 
       -
         name: Debug
-        run: go env && ls -l
+        run: |
+            mkdir -p $GOPATH/src/github.com/streamnative/pulsar-beat-output &&
+            mv * mkdir -p $GOPATH/src/github.com/streamnative/pulsar-beat-output/ &&
+            cd $GOPATH/src/github.com/streamnative/pulsar-beat-output/
     
       -
         name: Run GoReleaser
