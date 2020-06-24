@@ -39,6 +39,8 @@ type pulsarConfig struct {
 	CertificatePath            string        `config:"certificate_path"`
 	PrivateKeyPath             string        `config:"private_key_path"`
 	StatsIntervalInSeconds     int           `config:"stats_interval_in_seconds"`
+	Token                      string        `config:"token"`
+	TokenFilePath              string        `config:"token_file_path"`
 
 	Codec       codec.Config `config:"codec"`
 	BulkMaxSize int          `config:"bulk_max_size"`
@@ -106,6 +108,12 @@ func initOptions(
 		if len(config.CertificatePath) > 0 {
 			clientOptions.Authentication = pulsar.NewAuthenticationTLS(config.CertificatePath, config.PrivateKeyPath)
 		}
+	}
+	if len(config.Token) > 0 {
+		clientOptions.Authentication = pulsar.NewAuthenticationToken(string(config.Token))
+	}
+	if len(config.TokenFilePath) > 0 {
+		clientOptions.Authentication = pulsar.NewAuthenticationTokenFromFile(config.TokenFilePath)
 	}
 	// The client has not added these options yet.
 	// if config.IOThreads > 0 {
