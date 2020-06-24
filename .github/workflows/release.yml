@@ -34,7 +34,7 @@ jobs:
       -
         name: Unshallow
         run: |
-            cd go/src/github.com/streamnative/pulsar-beat-output &&
+            cd go/src/github.com/streamnative/ &&
             git fetch --prune --unshallow
 
       -
