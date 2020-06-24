@@ -32,4 +32,4 @@ jobs:
           version: latest
           args: release --rm-dist --release-notes=docs/release-note.md --release-header=docs/release-header.md
         env:
-          GITHUB_TOKEN: ${{ secrets.CLOUD_CLI_ACCESS_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.BEAT_ACCESS_TOKEN }}
