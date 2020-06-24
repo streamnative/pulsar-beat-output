@@ -19,12 +19,11 @@ jobs:
             go-version: 1.13.x
 
       -
-        name: Debug
+        name: Create go path directory
         env:
             GOPATH: /home/runner/work/pulsar-beat-output/pulsar-beat-output/go
         run: |
-            mkdir -p $GOPATH/src/github.com/streamnative/ &&
-            ls -la
+            mkdir -p $GOPATH/src/github.com/streamnative/
 
       -
         name: Checkout
@@ -37,14 +36,7 @@ jobs:
         run: |
             mkdir -p go/src/github.com/streamnative/pulsar-beat-output
             cd /home/runner/work/pulsar-beat-output/pulsar-beat-output/go/src/github.com/streamnative/pulsar-beat-output &&
-            git fetch --prune --unshallow &&
-            ls -la
-
-      -
-        name: Debug
-        run: |
-            cd /home/runner/work/pulsar-beat-output/pulsar-beat-output/go/src/github.com/streamnative/pulsar-beat-output &&
-            ls -la
+            git fetch --prune --unshallow
     
       -
         name: Run GoReleaser
