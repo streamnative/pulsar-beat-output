@@ -21,7 +21,7 @@ jobs:
       -
         name: Debug
         run: |
-            export GOPATH=/home/runner/work/go
+            export GOPATH=/home/runner/work/pulsar-beat-output/pulsar-beat-output/go
             mkdir -p $GOPATH/src/github.com/streamnative/ &&
             ls -la
 
@@ -49,7 +49,7 @@ jobs:
         name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v1
         with:
-          workdir: /home/runner/work/go/src/github.com/streamnative/pulsar-beat-output/
+          workdir: /home/runner/work/pulsar-beat-output/pulsar-beat-output/go/src/github.com/streamnative/pulsar-beat-output
           version: latest
           args: release --rm-dist --release-notes=docs/release-note.md --release-header=docs/release-header.md
         env:
