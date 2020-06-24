@@ -62,6 +62,30 @@ builds:
         - 386
         - amd64
     main: ./winlogbeat/winlogbeat.go
+  - 
+    id: "packetbeat"
+    env:
+        - CGO_ENABLED=0
+    binary: packetbeat
+    goos:
+        - linux
+        - darwin
+    goarch:
+        - 386
+        - amd64
+    main: ./packetbeat/packetbeat.go
+  -
+    id: "metricbeat"
+    env:
+        - CGO_ENABLED=0
+    binary: metricbeat
+    goos:
+        - linux
+        - darwin
+    goarch:
+        - 386
+        - amd64
+    main: ./metricbeat/metricbeat.go
 
 checksum:
   name_template: 'checksums.txt'
