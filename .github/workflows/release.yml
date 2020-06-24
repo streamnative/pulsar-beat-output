@@ -1,0 +1,35 @@
+name: elastic beat release by goreleaser
+
+on:
+  push:
+    tags:
+      - '*'
+
+env:
+  GOPRIVATE: github.com/streamnative
+
+jobs:
+  goreleaser:
+    runs-on: ubuntu-latest
+    steps:
+      -
+        name: Checkout
+        uses: actions/checkout@v2
+      -
+        name: Unshallow
+        run: git fetch --prune --unshallow
+
+      -
+        name: Set up Go
+        uses: actions/setup-go@v1
+        with:
+            go-version: 1.13.x
+    
+      -
+        name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v1
+        with:
+          version: latest
+          args: release --rm-dist --release-notes=docs/release-note.md --release-header=docs/release-header.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.CLOUD_CLI_ACCESS_TOKEN }}

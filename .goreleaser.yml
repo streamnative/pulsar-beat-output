@@ -1,0 +1,80 @@
+# This is an example goreleaser.yaml file with some sane defaults.
+# Make sure to check the documentation at http://goreleaser.com
+project_name: beat
+builds:
+  -
+    id: "fielbeat"
+    binary: filebeat
+    env:
+        - CGO_ENABLED=0
+    goos:
+        - linux
+        - darwin
+        - windows
+    goarch:
+        - 386
+        - amd64
+    main: ./filebeat/filebeat.go
+  -
+    id: "auditbeat"
+    env:
+        - CGO_ENABLED=0
+    binary: auditbeat
+    goos:
+        - linux
+        - darwin
+        - windows
+    goarch:
+        - 386
+        - amd64
+    main: ./auditbeat/auditbeat.go
+  -
+    id: "functionbeat"
+    env:
+        - CGO_ENABLED=0
+    binary: functionbeat
+    goos:
+        - linux
+        - darwin
+        - windows
+    goarch:
+        - 386
+        - amd64
+    main: ./functionbeat/functionbeat.go
+  -
+    id: "journalbeat"
+    env:
+        - CGO_ENABLED=0
+    binary: journalbeat
+    goos:
+        - linux
+        - darwin
+        - windows
+    goarch:
+        - 386
+        - amd64
+    main: ./journalbeat/journalbeat.go
+  -
+    id: "winlogbeat"
+    env:
+        - CGO_ENABLED=0
+    binary: winlogbeat
+    goos:
+        - linux
+        - darwin
+        - windows
+    goarch:
+        - 386
+        - amd64
+    main: ./winlogbeat/winlogbeat.go
+
+checksum:
+  name_template: 'checksums.txt'
+snapshot:
+  name_template: "{{ .Tag }}-next"
+changelog:
+  sort: asc
+  filters:
+    exclude:
+    - '^docs:'
+    - '^test:'
