@@ -29,8 +29,8 @@ jobs:
         name: Debug
         run: |
             export GOPATH=/home/runner/work/go
-            mkdir -p $GOPATH/src/github.com/streamnative/pulsar-beat-output &&
-            mv * $GOPATH/src/github.com/streamnative/pulsar-beat-output/ &&
+            mkdir -p $GOPATH/src/github.com/streamnative/ &&
+            cp -r /home/runner/work/pulsar-beat-output $GOPATH/src/github.com/streamnative/ &&
             cd $GOPATH/src/github.com/streamnative/pulsar-beat-output/
     
       -
