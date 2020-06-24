@@ -47,7 +47,7 @@ jobs:
     
       -
         name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v1
+        uses: goreleaser/goreleaser-action@v2.1.1
         with:
           workdir: /home/runner/work/pulsar-beat-output/pulsar-beat-output/go/src/github.com/streamnative/pulsar-beat-output
           version: latest
