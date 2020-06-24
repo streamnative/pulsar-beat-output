@@ -35,14 +35,14 @@ jobs:
         name: Unshallow
         run: |
             mkdir -p go/src/github.com/streamnative/pulsar-beat-output
-            cd go/src/github.com/streamnative/pulsar-beat-output &&
+            cd /home/runner/work/pulsar-beat-output/pulsar-beat-output/go/src/github.com/streamnative/pulsar-beat-output &&
             git fetch --prune --unshallow &&
             ls -la
 
       -
         name: Debug
         run: |
-            cd go/src/github.com/streamnative/pulsar-beat-output &&
+            cd /home/runner/work/pulsar-beat-output/pulsar-beat-output/go/src/github.com/streamnative/pulsar-beat-output &&
             ls -la
     
       -
