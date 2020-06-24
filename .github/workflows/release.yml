@@ -20,8 +20,9 @@ jobs:
 
       -
         name: Debug
+        env:
+            GOPATH: /home/runner/work/pulsar-beat-output/pulsar-beat-output/go
         run: |
-            export GOPATH=/home/runner/work/pulsar-beat-output/pulsar-beat-output/go
             mkdir -p $GOPATH/src/github.com/streamnative/ &&
             ls -la
 
@@ -54,4 +55,5 @@ jobs:
           args: release --rm-dist --release-notes=docs/release-note.md --release-header=docs/release-header.md
         env:
           GITHUB_TOKEN: ${{ secrets.BEAT_ACCESS_TOKEN }}
+          GOPATH: /home/runner/work/pulsar-beat-output/pulsar-beat-output/go
         
