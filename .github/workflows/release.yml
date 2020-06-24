@@ -33,9 +33,9 @@ jobs:
 
       -
         name: Unshallow
-        with:
-            path: go/src/github.com/streamnative/pulsar-beat-output
-        run: git fetch --prune --unshallow
+        run: |
+            cd go/src/github.com/streamnative/pulsar-beat-output &&
+            git fetch --prune --unshallow
 
       -
         name: Debug
@@ -47,7 +47,6 @@ jobs:
         name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v1
         with:
-          path: go/src/github.com/streamnative/pulsar-beat-output
           workdir: /home/runner/work/go/src/github.com/streamnative/pulsar-beat-output/
           version: latest
           args: release --rm-dist --release-notes=docs/release-note.md --release-header=docs/release-header.md
