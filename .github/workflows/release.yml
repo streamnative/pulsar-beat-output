@@ -30,7 +30,7 @@ jobs:
         run: |
             export GOPATH=/home/runner/work/go
             mkdir -p $GOPATH/src/github.com/streamnative/pulsar-beat-output &&
-            mv * mkdir -p $GOPATH/src/github.com/streamnative/pulsar-beat-output/ &&
+            mv * $GOPATH/src/github.com/streamnative/pulsar-beat-output/ &&
             cd $GOPATH/src/github.com/streamnative/pulsar-beat-output/
     
       -
