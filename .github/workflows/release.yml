@@ -36,6 +36,12 @@ jobs:
         with:
             path: go/src/github.com/streamnative/pulsar-beat-output
         run: git fetch --prune --unshallow
+
+      -
+        name: Debug
+        run: |
+            cd go/src/github.com/streamnative/pulsar-beat-output &&
+            ls -la
     
       -
         name: Run GoReleaser
