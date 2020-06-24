@@ -28,9 +28,9 @@ jobs:
       -
         name: Debug
         run: |
-            mkdir -p $GOPATH/src/github.com/streamnative/pulsar-beat-output &&
-            mv * mkdir -p $GOPATH/src/github.com/streamnative/pulsar-beat-output/ &&
-            cd $GOPATH/src/github.com/streamnative/pulsar-beat-output/
+            sudo mkdir -p $GOPATH/src/github.com/streamnative/pulsar-beat-output &&
+            sudo mv * mkdir -p $GOPATH/src/github.com/streamnative/pulsar-beat-output/ &&
+            sudo cd $GOPATH/src/github.com/streamnative/pulsar-beat-output/
     
       -
         name: Run GoReleaser
