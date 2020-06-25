@@ -36,3 +36,4 @@ beat.db
 data/*
 logs/*
 
+dist
