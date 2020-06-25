@@ -135,6 +135,9 @@ Now you can see the information collected from filebeat.
 |certificate_path| path of tls cert file |""|
 |private_key_path| path of tls key file |""|
 |use_tls| Whether to turn on TLS, if to start, use protocol pulsar+ssl |false|
+|token| Access token information of cluster | "" |
+|token_file_path| The file path where token is saved | "" |
+
 
 #### Producer
 |Name|Description|Default|
