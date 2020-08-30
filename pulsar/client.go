@@ -21,6 +21,8 @@ package pulsar
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/elastic/beats/libbeat/beat"
@@ -103,6 +105,7 @@ func (c *client) Publish(batch publisher.Batch) error {
 
 		logp.Debug("pulsar", "Pulsar success encode events: %d", i)
 		messageID, err := c.producer.Send(context.Background(), &pulsar.ProducerMessage{
+			Key: fmt.Sprintf("%d", time.Now().Unix()),
 			Payload: []byte(serializedEvent),
 		})
 		logp.Debug("pulsar", "Pulsar success send events: %d and messageID: %s ", i, messageID)
