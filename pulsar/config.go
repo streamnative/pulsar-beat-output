@@ -120,7 +120,7 @@ func initOptions(
 	// 	clientOptions.IOThreads = config.IOThreads
 	// }
 	// if config.OperationTimeoutSeconds > 0 {
-	// 	clientOptions.OperationTimeoutSeconds = config.OperationTimeoutSeconds * time.Second
+	// 	clientOptions.OperationTimeoutSeconds = config.OperationTimeoutSeconds 
 	// }
 	// if config.MessageListenerThreads > 0 {
 	// 	clientOptions.MessageListenerThreads = config.MessageListenerThreads
@@ -142,7 +142,7 @@ func initOptions(
 	}
 	//  this version producerOptions has not  this field
 	//if config.SendTimeout > 0 {
-	//	producerOptions.SendTimeout = config.SendTimeout * time.Second
+	//	producerOptions.SendTimeout = config.SendTimeout
 	//}
 	if len(config.Properties) > 0 {
 		producerOptions.Properties = config.Properties
@@ -170,7 +170,7 @@ func initOptions(
 	// 	producerOptions.Batching = config.Batching
 	// }
 	if config.BatchingMaxPublishDelay > 0 {
-		producerOptions.BatchingMaxPublishDelay = config.BatchingMaxPublishDelay * time.Second
+		producerOptions.BatchingMaxPublishDelay = config.BatchingMaxPublishDelay
 	}
 	if config.BatchingMaxMessages > 0 {
 		producerOptions.BatchingMaxMessages = config.BatchingMaxMessages
