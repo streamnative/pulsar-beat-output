@@ -1,4 +1,0 @@
-pip
-PyYAML==4.2b1
-autopep8==1.4.3
-yamllint==1.13.0

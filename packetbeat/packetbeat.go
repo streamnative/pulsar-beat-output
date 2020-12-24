@@ -22,7 +22,7 @@
  import (
 	"os"
 	_ "github.com/streamnative/pulsar-beat-output/pulsar"
-	"github.com/elastic/beats/x-pack/packetbeat/cmd"
+	"github.com/elastic/beats/v7/x-pack/packetbeat/cmd"
  )
  
  func main() {

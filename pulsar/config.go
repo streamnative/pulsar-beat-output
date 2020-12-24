@@ -24,7 +24,7 @@ import (
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/elastic/beats/libbeat/outputs/codec"
+	"github.com/elastic/beats/v7/libbeat/outputs/codec"
 )
 
 type pulsarConfig struct {
