@@ -14,18 +14,18 @@ builds:
         - 386
         - amd64
     main: ./filebeat/filebeat.go
-  -
-    id: "auditbeat"
-    env:
-        - CGO_ENABLED=0
-    binary: auditbeat
-    goos:
-        - linux
-        - darwin
-    goarch:
-        - 386
-        - amd64
-    main: ./auditbeat/auditbeat.go
+  # -
+  #   id: "auditbeat"
+  #   env:
+  #       - CGO_ENABLED=0
+  #   binary: auditbeat
+  #   goos:
+  #       - linux
+  #       - darwin
+  #   goarch:
+  #       - 386
+  #       - amd64
+  #   main: ./auditbeat/auditbeat.go
   -
     id: "functionbeat"
     env:
