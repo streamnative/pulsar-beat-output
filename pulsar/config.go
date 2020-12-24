@@ -25,6 +25,8 @@ import (
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/elastic/beats/v7/libbeat/outputs/codec"
+	"github.com/apache/pulsar-client-go/pulsar/log"
+	"github.com/sirupsen/logrus"
 )
 
 type pulsarConfig struct {
@@ -36,6 +38,8 @@ type pulsarConfig struct {
 	UseTLS                     bool          `config:"use_tls"`
 	TLSTrustCertsFilePath      string        `config:"tls_trust_certs_file_path"`
 	TLSAllowInsecureConnection bool          `config:"tls_allow_insecure_connection"`
+	MaxConnectionsPerBroker	   int 	         `config:"max_connection_per_broker"`
+	LogLevel 				   string	     `config:"log_level"`
 	CertificatePath            string        `config:"certificate_path"`
 	PrivateKeyPath             string        `config:"private_key_path"`
 	StatsIntervalInSeconds     int           `config:"stats_interval_in_seconds"`
@@ -87,6 +91,12 @@ func (c *pulsarConfig) Validate() error {
 			}
 		}
 	}
+	if (len(c.LogLevel) > 0) {
+		_, err := logrus.ParseLevel(c.LogLevel)
+		if (err != nil) {
+			return errors.New("Log level is incorrect, supported log level: panic, fatal, error, warn, info, debug, trace")
+		}
+	}
 	if c.BulkMaxSize < 0 {
 		return errors.New("bulk max size is incorrect")
 	}
@@ -114,6 +124,14 @@ func initOptions(
 	}
 	if len(config.TokenFilePath) > 0 {
 		clientOptions.Authentication = pulsar.NewAuthenticationTokenFromFile(config.TokenFilePath)
+	}
+	var logger log.Logger
+	standardLogger := logrus.StandardLogger()
+	if (len(config.LogLevel) > 0) {
+		level, _ := logrus.ParseLevel(config.LogLevel)
+		standardLogger.SetLevel(level)
+		logger = log.NewLoggerWithLogrus(standardLogger)
+		clientOptions.Logger = logger
 	}
 	// The client has not added these options yet.
 	// if config.IOThreads > 0 {

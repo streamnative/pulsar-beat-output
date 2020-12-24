@@ -6,6 +6,7 @@ require (
 	github.com/apache/pulsar-client-go v0.3.0
 	github.com/elastic/beats v7.6.2+incompatible
 	github.com/elastic/beats/v7 v7.10.1
+	github.com/sirupsen/logrus v1.4.2
 	github.com/stretchr/testify v1.6.1
 )
 
