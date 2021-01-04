@@ -39,16 +39,16 @@ jobs:
         run: |
             mkdir -p go/src/github.com/streamnative/pulsar-beat-output
             cd /home/runner/work/pulsar-beat-output/pulsar-beat-output/go/src/github.com/streamnative/pulsar-beat-output &&
-            git fetch --prune --unshallow
+            git fetch --prune --unshallow && go build -o filebeat filebeat/filebeat.go
     
-      -
-        name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v2.1.1
-        with:
-          workdir: /home/runner/work/pulsar-beat-output/pulsar-beat-output/go/src/github.com/streamnative/pulsar-beat-output
-          version: latest
-          args: release --rm-dist --release-notes=docs/release-note.md --release-header=docs/release-header.md
-        env:
-          GITHUB_TOKEN: ${{ secrets.BEAT_ACCESS_TOKEN }}
-          GOPATH: /home/runner/work/pulsar-beat-output/pulsar-beat-output/go
+      # -
+      #   name: Run GoReleaser
+      #   uses: goreleaser/goreleaser-action@v2.1.1
+      #   with:
+      #     workdir: /home/runner/work/pulsar-beat-output/pulsar-beat-output/go/src/github.com/streamnative/pulsar-beat-output
+      #     version: latest
+      #     args: release --rm-dist --release-notes=docs/release-note.md --release-header=docs/release-header.md
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.BEAT_ACCESS_TOKEN }}
+      #     GOPATH: /home/runner/work/pulsar-beat-output/pulsar-beat-output/go
         
