@@ -153,7 +153,7 @@ output.pulsar:
   topic: my_topic
   name: test123
   # Supported level: panic, fatal, error, warn, info, debug, trace
-  log_level: debug
+  log_level: info
 
 #-------------------------- Elasticsearch output ------------------------------
 # output.elasticsearch:
