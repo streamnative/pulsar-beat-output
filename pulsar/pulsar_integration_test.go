@@ -29,12 +29,12 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/outputs"
-	_ "github.com/elastic/beats/libbeat/outputs/codec/format"
-	_ "github.com/elastic/beats/libbeat/outputs/codec/json"
-	"github.com/elastic/beats/libbeat/outputs/outest"
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/outputs"
+	_ "github.com/elastic/beats/v7/libbeat/outputs/codec/format"
+	_ "github.com/elastic/beats/v7/libbeat/outputs/codec/json"
+	"github.com/elastic/beats/v7/libbeat/outputs/outest"
 )
 
 type eventInfo struct {
@@ -125,7 +125,7 @@ func testPulsarPublishMessage(t *testing.T, cfg map[string]interface{}) {
 			for i := range test.events {
 				batch := outest.NewBatch(test.events[i].events...)
 
-				output.Publish(batch)
+				output.Publish(context.Background(), batch)
 			}
 
 			expected := flatten(test.events)

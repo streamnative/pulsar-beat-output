@@ -149,9 +149,11 @@ setup.kibana:
 #   pretty: true
 # -------------------------- pulsar output ------------------------------
 output.pulsar:
-  url: "pulsar://pulsar-standalone3:6650"
+  url: "pulsar://pulsar-beat-standalone:6650"
   topic: my_topic
   name: test123
+  # Supported level: panic, fatal, error, warn, info, debug, trace
+  log_level: info
 
 #-------------------------- Elasticsearch output ------------------------------
 # output.elasticsearch:
