@@ -99,7 +99,7 @@ func (c *client) Publish(batch publisher.Batch) error {
 		serializedEvent, err := c.codec.Encode(c.beat.Beat, &event.Content)
 		if err != nil {
 			c.observer.Dropped(1)
-			c.log.Errorf("Failed event: %v, error: %v", event, err)
+			logp.Error("Failed event: %v, error: %v", event, err)
 			continue
 		}
 		buf := make([]byte, len(serializedEvent))
@@ -113,7 +113,7 @@ func (c *client) Publish(batch publisher.Batch) error {
 		}, func(msgId pulsar.MessageID, prodMsg *pulsar.ProducerMessage, err error) {
 			if err != nil {
 				c.observer.Dropped(1)
-				c.log.Errorf("produce send failed: %v", err)
+				logp.Error("produce send failed: %v", err)
 			} else {
 				logp.Debug("Pulsar success send events: messageID: %s ", msgId)
 				c.observer.Acked(1)
