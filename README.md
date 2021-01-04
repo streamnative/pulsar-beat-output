@@ -62,13 +62,11 @@ output.pulsar:
 #### Build other beat
 
 ```
-go build -o metricbeat metricbeat.go
-go build -o filebeat filebeat.go
-go build -o functionbeat functionbeat.go
-go build -o journalbeat journalbeat.go
-go build -o auditbeat auditbeat.go
-go build -o winlogbeat winlogbeat.go
-go build -o packetbeat packetbeat.go
+go build -o filebeat filebeat/filebeat.go
+go build -o functionbeat functionbeat/functionbeat.go
+go build -o journalbeat journalbeat/journalbeat.go
+go build -o winlogbeat winlogbeat/winlogbeat.go
+go build -o packetbeat packetbeat/packetbeat.go
 ```
 ### Build and test with docker
 
@@ -90,7 +88,7 @@ docker network create pulsar-beat
 
 #### Start Pulsar service
 ```
-docker run -d -it --network pulsar-beat -p 6650:6650 -p 8080:8080 -v $PWD/data:/pulsar/data --name pulsar-beat-standalone apachepulsar/pulsar:2.4.0 bin/pulsar standalone
+docker run -d -it --network pulsar-beat -p 6650:6650 -p 8080:8080 -v $PWD/data:/pulsar/data --name pulsar-beat-standalone apachepulsar/pulsar:2.7.0 bin/pulsar standalone
 ```
 
 #### Add following configuration to filebeat.yml
@@ -137,6 +135,7 @@ Now you can see the information collected from filebeat.
 |use_tls| Whether to turn on TLS, if to start, use protocol pulsar+ssl |false|
 |token| Access token information of cluster | "" |
 |token_file_path| The file path where token is saved | "" |
+|log_level| Setting the log level, available options(panic, fatal, error, warn, info, debug, trace) | info |
 
 
 #### Producer

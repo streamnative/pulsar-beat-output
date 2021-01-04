@@ -22,7 +22,14 @@ package main
 import (
 	"os"
 	_ "github.com/streamnative/pulsar-beat-output/pulsar"
-	"github.com/elastic/beats/x-pack/auditbeat/cmd"
+	"github.com/elastic/beats/v7/x-pack/auditbeat/cmd"
+
+	// Register modules.
+	_ "github.com/elastic/beats/v7/auditbeat/module/auditd"
+	_ "github.com/elastic/beats/v7/auditbeat/module/file_integrity"
+
+	// Register includes.
+	_ "github.com/elastic/beats/v7/auditbeat/include"
 )
  
 func main() {

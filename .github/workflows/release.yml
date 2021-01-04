@@ -36,7 +36,9 @@ jobs:
         run: |
             mkdir -p go/src/github.com/streamnative/pulsar-beat-output
             cd /home/runner/work/pulsar-beat-output/pulsar-beat-output/go/src/github.com/streamnative/pulsar-beat-output &&
-            git fetch --prune --unshallow
+            git fetch --prune --unshallow &&
+            go mod tidy &&
+            sudo cp zstd_cgo.go /home/runner/go/pkg/mod/github.com/apache/pulsar-client-go@v0.3.0/pulsar/internal/compression/zstd_cgo.go &&
     
       -
         name: Run GoReleaser

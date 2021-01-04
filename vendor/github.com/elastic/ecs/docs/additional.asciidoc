@@ -1,7 +1,0 @@
-[[ecs-additional-information]]
-== Additional Information
-
-// include::use-cases.asciidoc[]
-include::faq.asciidoc[]
-include::glossary.asciidoc[]
-include::contributing.asciidoc[]
