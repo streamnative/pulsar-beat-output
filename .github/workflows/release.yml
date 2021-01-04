@@ -1,9 +1,6 @@
 name: elastic beat release by goreleaser
 
 on:
-  pull_request:
-    branches:
-      - master
   push:
     tags:
       - '*'
@@ -42,16 +39,15 @@ jobs:
             git fetch --prune --unshallow &&
             go mod tidy &&
             sudo cp zstd_cgo.go /home/runner/go/pkg/mod/github.com/apache/pulsar-client-go@v0.3.0/pulsar/internal/compression/zstd_cgo.go &&
-            go build -o filebeat filebeat/filebeat.go
     
-      # -
-      #   name: Run GoReleaser
-      #   uses: goreleaser/goreleaser-action@v2.1.1
-      #   with:
-      #     workdir: /home/runner/work/pulsar-beat-output/pulsar-beat-output/go/src/github.com/streamnative/pulsar-beat-output
-      #     version: latest
-      #     args: release --rm-dist --release-notes=docs/release-note.md --release-header=docs/release-header.md
-      #   env:
-      #     GITHUB_TOKEN: ${{ secrets.BEAT_ACCESS_TOKEN }}
-      #     GOPATH: /home/runner/work/pulsar-beat-output/pulsar-beat-output/go
+      -
+        name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v2.1.1
+        with:
+          workdir: /home/runner/work/pulsar-beat-output/pulsar-beat-output/go/src/github.com/streamnative/pulsar-beat-output
+          version: latest
+          args: release --rm-dist --release-notes=docs/release-note.md --release-header=docs/release-header.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.BEAT_ACCESS_TOKEN }}
+          GOPATH: /home/runner/work/pulsar-beat-output/pulsar-beat-output/go
         
