@@ -1,6 +1,9 @@
 name: elastic beat release by goreleaser
 
 on:
+  pull_request:
+    branches:
+      - master
   push:
     tags:
       - '*'
