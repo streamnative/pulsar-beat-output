@@ -22,11 +22,11 @@ package main
 import (
     "os"
     _ "github.com/streamnative/pulsar-beat-output/pulsar"
-    "github.com/elastic/beats/x-pack/filebeat/cmd"
+    "github.com/elastic/beats/v7/x-pack/filebeat/cmd"
 )
 
 func main() {
-    if err := cmd.RootCmd.Execute(); err != nil {
+    if err := cmd.Filebeat().Execute(); err != nil {
         os.Exit(1)
     }
 }
