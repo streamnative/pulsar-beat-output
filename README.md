@@ -153,6 +153,17 @@ Now you can see the information collected from filebeat.
 
 ### FAQ
 
+#### case-insensitive import collision: "github.com/datadog/zstd" and "github.com/DataDog/zstd"
+
+```
+/root/go/pkg/mod/github.com/apache/pulsar-client-go@v0.3.0/pulsar/internal/compression/zstd_cgo.go:27:2: case-insensitive import collision: "github.com/datadog/zstd" and "github.com/DataDog/zstd"
+```
+
+Replace zstd_cgo.go file
+```
+cp zstd_cgo.go /root/go/pkg/mod/github.com/apache/pulsar-client-go@v0.3.0/pulsar/internal/compression/zstd_cgo.go
+```
+
 #### Install Pulsar Go Client
 Reference https://pulsar.apache.org/docs/en/client-libraries-go/ .
 
