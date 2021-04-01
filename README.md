@@ -23,7 +23,7 @@ cd pulsar-beat-output
 
 Edit main.go file
 
-```
+```go
 package main
 
 import (
@@ -46,7 +46,7 @@ go build -o filebeat main.go
 ### Usage
 
 #### Add following configuration to filebeat.yml
-```
+```yml
 output.pulsar:
   url: "pulsar://localhost:6650"
   topic: my_topic
@@ -92,7 +92,7 @@ docker run -d -it --network pulsar-beat -p 6650:6650 -p 8080:8080 -v $PWD/data:/
 ```
 
 #### Add following configuration to filebeat.yml
-```
+```yml
 output.pulsar:
   url: "pulsar://pulsar-beat-standalone:6650"
   topic: my_topic
