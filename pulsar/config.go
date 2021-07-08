@@ -24,8 +24,8 @@ import (
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/elastic/beats/v7/libbeat/outputs/codec"
 	"github.com/apache/pulsar-client-go/pulsar/log"
+	"github.com/elastic/beats/v7/libbeat/outputs/codec"
 	"github.com/sirupsen/logrus"
 )
 
@@ -38,8 +38,8 @@ type pulsarConfig struct {
 	UseTLS                     bool          `config:"use_tls"`
 	TLSTrustCertsFilePath      string        `config:"tls_trust_certs_file_path"`
 	TLSAllowInsecureConnection bool          `config:"tls_allow_insecure_connection"`
-	MaxConnectionsPerBroker	   int 	         `config:"max_connection_per_broker"`
-	LogLevel 				   string	     `config:"log_level"`
+	MaxConnectionsPerBroker    int           `config:"max_connection_per_broker"`
+	LogLevel                   string        `config:"log_level"`
 	CertificatePath            string        `config:"certificate_path"`
 	PrivateKeyPath             string        `config:"private_key_path"`
 	StatsIntervalInSeconds     int           `config:"stats_interval_in_seconds"`
@@ -91,9 +91,9 @@ func (c *pulsarConfig) Validate() error {
 			}
 		}
 	}
-	if (len(c.LogLevel) > 0) {
+	if len(c.LogLevel) > 0 {
 		_, err := logrus.ParseLevel(c.LogLevel)
-		if (err != nil) {
+		if err != nil {
 			return errors.New("Log level is incorrect, supported log level: panic, fatal, error, warn, info, debug, trace")
 		}
 	}
@@ -108,8 +108,11 @@ func (c *pulsarConfig) Validate() error {
 
 func initOptions(
 	config *pulsarConfig,
-) (pulsar.ClientOptions, pulsar.ProducerOptions, error) {
-	config.Validate()
+) (*pulsar.ClientOptions, *pulsar.ProducerOptions, error) {
+	err := config.Validate()
+	if err != nil {
+		return nil, nil, err
+	}
 	clientOptions := pulsar.ClientOptions{
 		URL: config.URL,
 	}
@@ -127,7 +130,7 @@ func initOptions(
 	}
 	var logger log.Logger
 	standardLogger := logrus.StandardLogger()
-	if (len(config.LogLevel) > 0) {
+	if len(config.LogLevel) > 0 {
 		level, _ := logrus.ParseLevel(config.LogLevel)
 		standardLogger.SetLevel(level)
 		logger = log.NewLoggerWithLogrus(standardLogger)
@@ -138,7 +141,7 @@ func initOptions(
 	// 	clientOptions.IOThreads = config.IOThreads
 	// }
 	// if config.OperationTimeoutSeconds > 0 {
-	// 	clientOptions.OperationTimeoutSeconds = config.OperationTimeoutSeconds 
+	// 	clientOptions.OperationTimeoutSeconds = config.OperationTimeoutSeconds
 	// }
 	// if config.MessageListenerThreads > 0 {
 	// 	clientOptions.MessageListenerThreads = config.MessageListenerThreads
@@ -193,5 +196,5 @@ func initOptions(
 	if config.BatchingMaxMessages > 0 {
 		producerOptions.BatchingMaxMessages = config.BatchingMaxMessages
 	}
-	return clientOptions, producerOptions, nil
+	return &clientOptions, &producerOptions, nil
 }
