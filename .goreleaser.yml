@@ -2,17 +2,16 @@
 # Make sure to check the documentation at http://goreleaser.com
 project_name: beat
 builds:
-  -
-    id: "fielbeat"
+  - id: "fielbeat"
     binary: filebeat
     env:
-        - CGO_ENABLED=0
+      - CGO_ENABLED=0
     goos:
-        - linux
-        - darwin
+      - linux
+      - darwin
     goarch:
-        - 386
-        - amd64
+      - 386
+      - amd64
     main: ./filebeat/filebeat.go
   # -
   #   id: "auditbeat"
@@ -26,41 +25,71 @@ builds:
   #       - 386
   #       - amd64
   #   main: ./auditbeat/auditbeat.go
-  -
-    id: "functionbeat"
+  - id: "functionbeat"
     env:
-        - CGO_ENABLED=0
+      - CGO_ENABLED=0
     binary: functionbeat
     goos:
-        - linux
-        - darwin
+      - linux
+      - darwin
     goarch:
-        - 386
-        - amd64
+      - 386
+      - amd64
     main: ./functionbeat/functionbeat.go
-  -
-    id: "journalbeat"
+  - id: "heartbeat"
     env:
-        - CGO_ENABLED=0
+      - CGO_ENABLED=0
+    binary: heartbeat
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - 386
+      - amd64
+    main: ./heartbeat/heartbeat.go
+  - id: "journalbeat"
+    env:
+      - CGO_ENABLED=0
     binary: journalbeat
     goos:
-        - linux
-        - darwin
+      - linux
+      - darwin
     goarch:
-        - 386
-        - amd64
+      - 386
+      - amd64
     main: ./journalbeat/journalbeat.go
-  -
-    id: "winlogbeat"
+  - id: "metricbeat"
     env:
-        - CGO_ENABLED=0
+      - CGO_ENABLED=0
+    binary: heartbeat
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - 386
+      - amd64
+    main: ./metricbeat/metricbeat.go
+  - id: "packetbeat"
+    env:
+      - CGO_ENABLED=0
+    binary: heartbeat
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - 386
+      - amd64
+    main: ./packetbeat/packetbeat.go
+  - id: "winlogbeat"
+    env:
+      - CGO_ENABLED=0
     binary: winlogbeat
     goos:
-        - linux
-        - darwin
+      - linux
+      - darwin
     goarch:
-        - 386
-        - amd64
+      - 386
+      - amd64
     main: ./winlogbeat/winlogbeat.go
 
 checksum:
@@ -71,5 +100,5 @@ changelog:
   sort: asc
   filters:
     exclude:
-    - '^docs:'
-    - '^test:'
+      - '^docs:'
+      - '^test:'
