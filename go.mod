@@ -4,17 +4,16 @@ go 1.14
 
 require (
 	github.com/apache/pulsar-client-go v0.5.0
-	github.com/elastic/beats v7.6.2+incompatible
-	github.com/elastic/beats/v7 v7.10.1
+	github.com/elastic/beats/v7 v7.13.2
+	github.com/godror/godror v0.10.4 // indirect
 	github.com/sirupsen/logrus v1.4.2
 	github.com/stretchr/testify v1.7.0
 )
 
-// needed because elastic wants these replacements, and https://github.com/golang/go/issues/30354#issuecomment-466479708
 replace (
-	github.com/Azure/go-autorest => github.com/Azure/go-autorest v12.2.0+incompatible
+	// needed because elastic wants these replacements, and https://github.com/golang/go/issues/30354#issuecomment-466479708
 	github.com/Microsoft/go-winio => github.com/bi-zone/go-winio v0.4.15
-	github.com/Shopify/sarama => github.com/elastic/sarama v1.19.1-0.20200629123429-0e7b69039eec
+	github.com/Shopify/sarama => github.com/elastic/sarama v1.19.1-0.20210120173147-5c8cb347d877
 	github.com/cucumber/godog => github.com/cucumber/godog v0.8.1
 	github.com/docker/docker => github.com/docker/engine v0.0.0-20191113042239-ea84732a7725
 	github.com/docker/go-plugins-helpers => github.com/elastic/go-plugins-helpers v0.0.0-20200207104224-bdf17607b79f
@@ -25,6 +24,5 @@ replace (
 	github.com/google/gopacket => github.com/adriansr/gopacket v1.1.18-0.20200327165309-dd62abfa8a41
 	github.com/insomniacslk/dhcp => github.com/elastic/dhcp v0.0.0-20200227161230-57ec251c7eb3 // indirect
 	github.com/kardianos/service => github.com/blakerouse/service v1.1.1-0.20200924160513-057808572ffa
-	github.com/tonistiigi/fifo => github.com/containerd/fifo v0.0.0-20190816180239-bda0ff6ed73c
 	golang.org/x/tools => golang.org/x/tools v0.0.0-20200602230032-c00d67ef29d0 // release 1.14
 )
