@@ -2,6 +2,17 @@
 # Make sure to check the documentation at http://goreleaser.com
 project_name: beat
 builds:
+  - id: "auditbeat"
+    env:
+      - CGO_ENABLED=0
+    binary: auditbeat
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - 386
+      - amd64
+    main: ./auditbeat/auditbeat.go
   - id: "fielbeat"
     binary: filebeat
     env:
@@ -13,29 +24,6 @@ builds:
       - 386
       - amd64
     main: ./filebeat/filebeat.go
-  # -
-  #   id: "auditbeat"
-  #   env:
-  #       - CGO_ENABLED=0
-  #   binary: auditbeat
-  #   goos:
-  #       - linux
-  #       - darwin
-  #   goarch:
-  #       - 386
-  #       - amd64
-  #   main: ./auditbeat/auditbeat.go
-  - id: "functionbeat"
-    env:
-      - CGO_ENABLED=0
-    binary: functionbeat
-    goos:
-      - linux
-      - darwin
-    goarch:
-      - 386
-      - amd64
-    main: ./functionbeat/functionbeat.go
   - id: "heartbeat"
     env:
       - CGO_ENABLED=0
