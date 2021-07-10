@@ -20,9 +20,9 @@
 package main
 
 import (
-	"os"
+	"github.com/elastic/beats/v7/auditbeat/cmd"
 	_ "github.com/streamnative/pulsar-beat-output/pulsar"
-	"github.com/elastic/beats/v7/x-pack/auditbeat/cmd"
+	"os"
 
 	// Register modules.
 	_ "github.com/elastic/beats/v7/auditbeat/module/auditd"
@@ -31,7 +31,7 @@ import (
 	// Register includes.
 	_ "github.com/elastic/beats/v7/auditbeat/include"
 )
- 
+
 func main() {
 	if err := cmd.RootCmd.Execute(); err != nil {
 		os.Exit(1)

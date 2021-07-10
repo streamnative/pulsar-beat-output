@@ -4,8 +4,7 @@ go 1.14
 
 require (
 	github.com/apache/pulsar-client-go v0.5.0
-	github.com/elastic/beats/v7 v7.13.2
-	github.com/godror/godror v0.10.4 // indirect
+	github.com/elastic/beats/v7 v7.11.0
 	github.com/sirupsen/logrus v1.4.2
 	github.com/stretchr/testify v1.7.0
 )
@@ -13,7 +12,7 @@ require (
 replace (
 	// needed because elastic wants these replacements, and https://github.com/golang/go/issues/30354#issuecomment-466479708
 	github.com/Microsoft/go-winio => github.com/bi-zone/go-winio v0.4.15
-	github.com/Shopify/sarama => github.com/elastic/sarama v1.19.1-0.20210120173147-5c8cb347d877
+	github.com/Shopify/sarama => github.com/elastic/sarama v1.19.1-0.20200629123429-0e7b69039eec
 	github.com/cucumber/godog => github.com/cucumber/godog v0.8.1
 	github.com/docker/docker => github.com/docker/engine v0.0.0-20191113042239-ea84732a7725
 	github.com/docker/go-plugins-helpers => github.com/elastic/go-plugins-helpers v0.0.0-20200207104224-bdf17607b79f

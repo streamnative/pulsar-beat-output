@@ -20,12 +20,12 @@
 package main
 
 import (
-	"os"
-	_ "github.com/streamnative/pulsar-beat-output/pulsar"
+	"github.com/elastic/beats/v7/journalbeat/cmd"
 	_ "github.com/elastic/beats/v7/journalbeat/include"
-	"github.com/elastic/beats/v7/x-pack/journalbeat/cmd"
+	_ "github.com/streamnative/pulsar-beat-output/pulsar"
+	"os"
 )
- 
+
 func main() {
 	if err := cmd.RootCmd.Execute(); err != nil {
 		os.Exit(1)
