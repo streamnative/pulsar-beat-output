@@ -3,82 +3,88 @@
 project_name: beat
 builds:
   - id: "auditbeat"
-    env:
-      - CGO_ENABLED=0
-    binary: auditbeat
+    dir: "auditbeat"
+    main: ./auditbeat.go
     goos:
       - linux
-      - darwin
     goarch:
-      - 386
+      - arm64
       - amd64
-    main: ./auditbeat/auditbeat.go
-  - id: "fielbeat"
-    binary: filebeat
-    env:
-      - CGO_ENABLED=0
+  - id: "filebeat"
+    dir: "filebeat"
+    main: ./filebeat.go
     goos:
       - linux
-      - darwin
     goarch:
-      - 386
+      - arm64
       - amd64
-    main: ./filebeat/filebeat.go
   - id: "heartbeat"
-    env:
-      - CGO_ENABLED=0
-    binary: heartbeat
+    dir: "heartbeat"
+    main: ./heartbeat.go
     goos:
       - linux
-      - darwin
     goarch:
-      - 386
+      - arm64
       - amd64
-    main: ./heartbeat/heartbeat.go
   - id: "journalbeat"
     env:
       - CGO_ENABLED=0
-    binary: journalbeat
+    dir: "journalbeat"
+    main: ./journalbeat.go
     goos:
       - linux
-      - darwin
     goarch:
-      - 386
+      - arm64
       - amd64
-    main: ./journalbeat/journalbeat.go
   - id: "metricbeat"
-    env:
-      - CGO_ENABLED=0
-    binary: heartbeat
+    dir: "metricbeat"
+    main: ./metricbeat.go
     goos:
       - linux
-      - darwin
     goarch:
-      - 386
+      - arm64
       - amd64
-    main: ./metricbeat/metricbeat.go
-  - id: "packetbeat"
-    env:
-      - CGO_ENABLED=0
-    binary: heartbeat
-    goos:
-      - linux
-      - darwin
-    goarch:
-      - 386
-      - amd64
-    main: ./packetbeat/packetbeat.go
   - id: "winlogbeat"
     env:
       - CGO_ENABLED=0
-    binary: winlogbeat
+    dir: "winlogbeat"
+    main: ./winlogbeat.go
     goos:
       - linux
-      - darwin
     goarch:
-      - 386
+      - arm64
       - amd64
-    main: ./winlogbeat/winlogbeat.go
+archives:
+  - id: "auditbeat"
+    builds:
+      - "auditbeat"
+    format: "binary"
+    name_template: "auditbeat_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}{{ if .Mips }}_{{ .Mips }}{{ end }}"
+  - id: "filebeat"
+    builds:
+      - "filebeat"
+    format: "binary"
+    name_template: "filebeat_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}{{ if .Mips }}_{{ .Mips }}{{ end }}"
+  - id: "heartbeat"
+    builds:
+      - "heartbeat"
+    format: "binary"
+    name_template: "heartbeat_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}{{ if .Mips }}_{{ .Mips }}{{ end }}"
+  - id: "journalbeat"
+    builds:
+      - "journalbeat"
+    format: "binary"
+    name_template: "journalbeat_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}{{ if .Mips }}_{{ .Mips }}{{ end }}"
+  - id: "metricbeat"
+    builds:
+      - "metricbeat"
+    format: "binary"
+    name_template: "metricbeat_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}{{ if .Mips }}_{{ .Mips }}{{ end }}"
+  - id: "winlogbeat"
+    builds:
+      - "winlogbeat"
+    format: "binary"
+    name_template: "winlogbeat_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}{{ if .Mips }}_{{ .Mips }}{{ end }}"
 
 checksum:
   name_template: 'checksums.txt'
