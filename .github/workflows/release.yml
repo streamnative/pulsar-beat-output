@@ -12,40 +12,20 @@ jobs:
   goreleaser:
     runs-on: ubuntu-latest
     steps:
-      -
-        name: Set up Go
-        uses: actions/setup-go@v1
+      - name: Set up Go
+        uses: actions/setup-go@v2
         with:
-            go-version: 1.13.x
-
-      -
-        name: Create go path directory
-        env:
-            GOPATH: /home/runner/work/pulsar-beat-output/pulsar-beat-output/go
-        run: |
-            mkdir -p $GOPATH/src/github.com/streamnative/
-
-      -
-        name: Checkout
+          go-version: 1.17
+      - name: Checkout
         uses: actions/checkout@v2
         with:
-            path: go/src/github.com/streamnative/pulsar-beat-output
-
-      -
-        name: Unshallow
-        run: |
-            mkdir -p go/src/github.com/streamnative/pulsar-beat-output
-            cd /home/runner/work/pulsar-beat-output/pulsar-beat-output/go/src/github.com/streamnative/pulsar-beat-output &&
-            git fetch --prune --unshallow &&
-            go mod tidy
-      -
-        name: Run GoReleaser
+          fetch-depth: 0
+      - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v2.1.1
         with:
-          workdir: /home/runner/work/pulsar-beat-output/pulsar-beat-output/go/src/github.com/streamnative/pulsar-beat-output
+          distribution: goreleaser
           version: latest
-          args: release --rm-dist --release-notes=docs/release-note.md --release-header=docs/release-header.md
+          args: release --rm-dist
         env:
           GITHUB_TOKEN: ${{ secrets.BEAT_ACCESS_TOKEN }}
           GOPATH: /home/runner/work/pulsar-beat-output/pulsar-beat-output/go
-        
