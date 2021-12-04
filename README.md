@@ -29,7 +29,6 @@ package main
 import (
     "os"
     _ "github.com/streamnative/pulsar-beat-output/pulsar"
-    "github.com/elastic/beats/x-pack/filebeat/cmd"
 )
 
 func main() {
