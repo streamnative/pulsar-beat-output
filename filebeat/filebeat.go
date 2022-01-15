@@ -21,12 +21,13 @@ package main
 
 import (
 	"github.com/elastic/beats/v7/filebeat/cmd"
+	inputs "github.com/elastic/beats/v7/filebeat/input/default-inputs"
 	_ "github.com/streamnative/pulsar-beat-output/pulsar"
 	"os"
 )
 
 func main() {
-	if err := cmd.RootCmd.Execute(); err != nil {
+	if err := cmd.Filebeat(inputs.Init, cmd.FilebeatSettings()).Execute(); err != nil {
 		os.Exit(1)
 	}
 }
