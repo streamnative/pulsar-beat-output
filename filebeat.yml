@@ -154,6 +154,16 @@ output.pulsar:
   name: test123
   # Supported level: panic, fatal, error, warn, info, debug, trace
   log_level: info
+  # Authentication token
+  # token:
+  # Authentciation oauth2
+  # oauth2:
+  #   enabled: false
+  #   issuer_url: ""
+  #   private_key: ""
+  #   client_id: ""
+  #   audience: ""
+  #   scope: ""
 
 #-------------------------- Elasticsearch output ------------------------------
 # output.elasticsearch:

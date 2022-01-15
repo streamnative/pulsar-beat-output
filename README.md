@@ -136,6 +136,13 @@ Now you can see the information collected from filebeat.
 |token| Access token information of cluster | "" |
 |token_file_path| The file path where token is saved | "" |
 |log_level| Setting the log level, available options(panic, fatal, error, warn, info, debug, trace) | info |
+|oauth2.enabled| Enabled or disabled oauth2 authentication | false |
+|oauth2.clientId| client ID | "" |
+|oauth2.issuerUrl| URL of the authentication provider which allows the Pulsar client to obtain an access token | "" |
+|oauth2.privateKey| URL of a JSON credentials file | "" |
+|oauth2.audience| The audience value is either the application (`Client ID`) for an ID Token or the API that is being called (`API Identifier`) for an Access Token | "" |
+|oauth2.scope| Scope is a mechanism in OAuth 2.0 to limit an application's access to a user's account | "" |
+
 
 
 #### Producer
