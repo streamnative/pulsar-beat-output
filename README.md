@@ -84,16 +84,14 @@ output.pulsar:
 
 #### Start Filebeat
 ```
-docker pull golang:1.12.4
-docker run -it --network pulsar-beat --name filebeat golang:1.12.4 /bin/bash
-mkdir -p $GOPATH/src/github.com/streamnative/
-cd $GOPATH/src/github.com/streamnative/
+docker pull golang:1.17
+docker run -it --network pulsar-beat --name filebeat golang:1.17 /bin/bash
 git clone https://github.com/streamnative/pulsar-beat-output
 cd pulsar-beat-output
-go build -o filebeat main.go
+go build -o filebeat filebeat/filebeat.go
 chown -R root:root filebeat.yml test_module/modules.d/system.yml test_module/module/system
 cp test_module/module/system/auth/test/test.log /var/log/messages.log
-cp filebeat filebeat.yml test_module
+cp filebeat/filebeat filebeat.yml test_module
 cd test_module
 ./filebeat modules enable system
 ./filebeat -c filebeat.yml -e

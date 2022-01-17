@@ -159,9 +159,9 @@ output.pulsar:
   # Authentciation oauth2
   # oauth2:
   #   enabled: false
-  #   issuer_url: ""
-  #   private_key: ""
-  #   client_id: ""
+  #   issuerUrl: ""
+  #   privateKey: ""
+  #   clientId: ""
   #   audience: ""
   #   scope: ""
 
