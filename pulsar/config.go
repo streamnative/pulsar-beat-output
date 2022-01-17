@@ -29,6 +29,15 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+type oauth2 struct {
+	Enabled    bool   `config:"enabled"`
+	IssuerURL  string `config:"issuerUrl"`
+	Audience   string `config:"audience"`
+	PrivateKey string `config:"privateKey"`
+	ClientID   string `config:"clientId"`
+	Scope      string `config:"scope"`
+}
+
 type pulsarConfig struct {
 	URL                        string        `config:"url"`
 	IOThreads                  int           `config:"io_threads"`
@@ -45,6 +54,7 @@ type pulsarConfig struct {
 	StatsIntervalInSeconds     int           `config:"stats_interval_in_seconds"`
 	Token                      string        `config:"token"`
 	TokenFilePath              string        `config:"token_file_path"`
+	Oauth2                     oauth2        `config:"oauth2"`
 
 	Codec       codec.Config `config:"codec"`
 	BulkMaxSize int          `config:"bulk_max_size"`
@@ -103,6 +113,14 @@ func (c *pulsarConfig) Validate() error {
 	if c.CompressionType < 0 {
 		return errors.New("compression_type is incorrect")
 	}
+	if c.Oauth2.Enabled {
+		if len(c.Oauth2.IssuerURL) == 0 {
+			return errors.New("issuer_url is incorrect")
+		}
+		if len(c.Oauth2.PrivateKey) == 0 {
+			return errors.New("private_key is incorrect")
+		}
+	}
 	return nil
 }
 
@@ -121,6 +139,23 @@ func initOptions(
 		if len(config.CertificatePath) > 0 {
 			clientOptions.Authentication = pulsar.NewAuthenticationTLS(config.CertificatePath, config.PrivateKeyPath)
 		}
+	}
+	if config.Oauth2.Enabled {
+		oauth2Map := map[string]string{
+			"type":       "client_credentials",
+			"issuerUrl":  config.Oauth2.IssuerURL,
+			"privateKey": config.Oauth2.PrivateKey,
+		}
+		if len(config.Oauth2.Audience) > 0 {
+			oauth2Map["audience"] = config.Oauth2.Audience
+		}
+		if len(config.Oauth2.Scope) > 0 {
+			oauth2Map["scope"] = config.Oauth2.Scope
+		}
+		if len(config.Oauth2.ClientID) > 0 {
+			oauth2Map["clientId"] = config.Oauth2.ClientID
+		}
+		clientOptions.Authentication = pulsar.NewAuthenticationOAuth2(oauth2Map)
 	}
 	if len(config.Token) > 0 {
 		clientOptions.Authentication = pulsar.NewAuthenticationToken(string(config.Token))
