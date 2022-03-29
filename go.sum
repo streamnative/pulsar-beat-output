@@ -119,8 +119,8 @@ github.com/andrewkroh/sys v0.0.0-20151128191922-287798fe3e43/go.mod h1:tJPYQG4mn
 github.com/antihax/optional v0.0.0-20180407024304-ca021399b1a6/go.mod h1:V8iCPQYkqmusNa815XgQio277wI47sdRh1dUOLdyC6Q=
 github.com/antihax/optional v1.0.0/go.mod h1:uupD/76wgC+ih3iEmQUL+0Ugr19nfwCT1kdvxnR2qWY=
 github.com/antlr/antlr4 v0.0.0-20200820155224-be881fa6b91d/go.mod h1:T7PbCXFs94rrTttyxjbyT5+/1V8T2TYDejxUfHJjw1Y=
-github.com/apache/pulsar-client-go v0.8.0 h1:0xDqMF7I8Fvyxvw7dLHyJUZcpTw+0WDyj4U5iOT/jCQ=
-github.com/apache/pulsar-client-go v0.8.0/go.mod h1:kpFNN3AqZWQEGcRnhu0rNhWLI91+6RDYqPbmNEiIsWs=
+github.com/apache/pulsar-client-go v0.8.1 h1:UZINLbH3I5YtNzqkju7g9vrl4CKrEgYSx2rbpvGufrE=
+github.com/apache/pulsar-client-go v0.8.1/go.mod h1:yJNcvn/IurarFDxwmoZvb2Ieylg630ifxeO/iXpk27I=
 github.com/apache/pulsar-client-go/oauth2 v0.0.0-20220120090717-25e59572242e h1:EqiJ0Xil8NmcXyupNqXV9oYDBeWntEIegxLahrTr8DY=
 github.com/apache/pulsar-client-go/oauth2 v0.0.0-20220120090717-25e59572242e/go.mod h1:Xee4tgYLFpYcPMcTfBYWE1uKRzeciodGTSEDMzsR6i8=
 github.com/apache/thrift v0.13.1-0.20200603211036-eac4d0c79a5f/go.mod h1:cp2SuWMxlEZw2r+iP2GNCdIi4C1qmUzdZFSVb+bacwQ=
@@ -141,7 +141,7 @@ github.com/aws/aws-sdk-go v1.32.6/go.mod h1:5zCpMtNQVjRREroY7sYe8lOMRSxkhG6MZveU
 github.com/aws/aws-sdk-go-v2 v0.24.0/go.mod h1:2LhT7UgHOXK3UXONKI5OMgIyoQL6zTAw/jwIeX6yqzw=
 github.com/awslabs/goformation/v3 v3.1.0/go.mod h1:hQ5RXo3GNm2laHWKizDzU5DsDy+yNcenSca2UxN0850=
 github.com/awslabs/goformation/v4 v4.1.0/go.mod h1:MBDN7u1lMNDoehbFuO4uPvgwPeolTMA2TzX1yO6KlxI=
-github.com/beefsack/go-rate v0.0.0-20180408011153-efa7637bb9b6/go.mod h1:6YNgTHLutezwnBvyneBbwvB8C82y3dcoOj5EQJIdGXA=
+github.com/beefsack/go-rate v0.0.0-20220214233405-116f4ca011a0/go.mod h1:6YNgTHLutezwnBvyneBbwvB8C82y3dcoOj5EQJIdGXA=
 github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973/go.mod h1:Dwedo/Wpr24TaqPxmxbtue+5NUziq4I4S80YR8gNf3Q=
 github.com/beorn7/perks v1.0.0/go.mod h1:KWe93zE9D1o94FZ5RNwFwVgaQK1VOXiVxmqh+CedLV8=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
@@ -681,8 +681,8 @@ github.com/prometheus/client_golang v1.0.0/go.mod h1:db9x61etRT2tGnBNRi70OPL5Fsn
 github.com/prometheus/client_golang v1.1.0/go.mod h1:I1FGZT9+L76gKKOs5djB6ezCbFQP1xR9D75/vuwEF3g=
 github.com/prometheus/client_golang v1.1.1-0.20190913103102-20428fa0bffc/go.mod h1:ikMPikHu8SMvBGWoKulvvOOZN227amf2E9eMYqyAwAY=
 github.com/prometheus/client_golang v1.7.1/go.mod h1:PY5Wy2awLA44sXw4AOSfFBetzPP4j5+D6mVACh+pe2M=
-github.com/prometheus/client_golang v1.11.0 h1:HNkLOAEQMIDv/K+04rukrLx6ch7msSRwf3/SASFAGtQ=
-github.com/prometheus/client_golang v1.11.0/go.mod h1:Z6t4BnS23TR94PD6BsDNk8yVqroYurpAkEiz0P2BEV0=
+github.com/prometheus/client_golang v1.11.1 h1:+4eQaD7vAZ6DsfsxB15hbE0odUjGI5ARs9yskGu1v4s=
+github.com/prometheus/client_golang v1.11.1/go.mod h1:Z6t4BnS23TR94PD6BsDNk8yVqroYurpAkEiz0P2BEV0=
 github.com/prometheus/client_model v0.0.0-20180712105110-5c3871d89910/go.mod h1:MbSGuTsp3dbXC40dX6PRTWyKYBIrTGTE9sqQNg2J8bo=
 github.com/prometheus/client_model v0.0.0-20190129233127-fd36f4220a90/go.mod h1:xMI15A0UPsDsEKsMN9yxemIoYk6Tm2C1GtYGdfGttqA=
 github.com/prometheus/client_model v0.0.0-20190812154241-14fe0d1b01d4/go.mod h1:xMI15A0UPsDsEKsMN9yxemIoYk6Tm2C1GtYGdfGttqA=
