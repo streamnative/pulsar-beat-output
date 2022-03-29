@@ -3,7 +3,7 @@ module github.com/streamnative/pulsar-beat-output
 go 1.17
 
 require (
-	github.com/apache/pulsar-client-go v0.8.0
+	github.com/apache/pulsar-client-go v0.8.1
 	github.com/elastic/beats/v7 v7.15.2
 	github.com/sirupsen/logrus v1.6.0
 	github.com/stretchr/testify v1.7.0
@@ -113,7 +113,7 @@ require (
 	github.com/pierrec/lz4 v2.5.2+incompatible // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/prometheus/client_golang v1.11.0 // indirect
+	github.com/prometheus/client_golang v1.11.1 // indirect
 	github.com/prometheus/client_model v0.2.0 // indirect
 	github.com/prometheus/common v0.26.0 // indirect
 	github.com/prometheus/procfs v0.6.0 // indirect
