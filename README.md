@@ -28,7 +28,9 @@ go build .
 
 ### Usage
 
-#### Add following configuration to filebeat.yml
+In this section, you can use the sample config file in the directory [./sample/config/], or you can create it as follow steps.
+
+#### Add following configuration to filebeat.yml 
 ```yml
 output.pulsar:
   url: "pulsar://localhost:6650"
