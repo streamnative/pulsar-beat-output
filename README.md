@@ -19,18 +19,22 @@ cd pulsar-beat-output
 
 ### Build
 
-#### Build Filebeat
+#### Build beats
 
 ```
-cd filebeat
-go build .
+go build -o filebeat filebeat/filebeat.go
+go build -o functionbeat functionbeat/functionbeat.go
+go build -o journalbeat journalbeat/journalbeat.go
+go build -o winlogbeat winlogbeat/winlogbeat.go
+go build -o packetbeat packetbeat/packetbeat.go
 ```
 
 ### Usage
 
 In this section, you can use the sample config file in the directory [./sample/config/], or you can create it as follow steps.
 
-#### Add following configuration to filebeat.yml 
+#### example
+#### Add following configuration to beat.yml 
 ```yml
 output.pulsar:
   url: "pulsar://localhost:6650"
@@ -44,15 +48,6 @@ output.pulsar:
 ./filebeat -c filebeat.yml -e
 ```
 
-#### Build other beat
-
-```
-go build -o filebeat filebeat/filebeat.go
-go build -o functionbeat functionbeat/functionbeat.go
-go build -o journalbeat journalbeat/journalbeat.go
-go build -o winlogbeat winlogbeat/winlogbeat.go
-go build -o packetbeat packetbeat/packetbeat.go
-```
 ### Build and test with docker
 
 #### Requirements
