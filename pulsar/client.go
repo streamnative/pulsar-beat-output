@@ -29,18 +29,21 @@ import (
 	"github.com/elastic/beats/v7/libbeat/logp"
 	"github.com/elastic/beats/v7/libbeat/outputs"
 	"github.com/elastic/beats/v7/libbeat/outputs/codec"
+	"github.com/elastic/beats/v7/libbeat/outputs/outil"
 	"github.com/elastic/beats/v7/libbeat/publisher"
 )
 
 type client struct {
-	clientOptions   pulsar.ClientOptions
-	producerOptions pulsar.ProducerOptions
-	pulsarClient    pulsar.Client
-	producer        pulsar.Producer
-	observer        outputs.Observer
-	beat            beat.Info
-	config          *pulsarConfig
-	codec           codec.Codec
+	clientOptions        pulsar.ClientOptions
+	producerOptions      pulsar.ProducerOptions
+	pulsarClient         pulsar.Client
+	observer             outputs.Observer
+	beat                 beat.Info
+	config               *pulsarConfig
+	codec                codec.Codec
+	topicSelector        outil.Selector
+	partitionKeySelector outil.Selector
+	producers            *Producers
 }
 
 func newPulsarClient(
@@ -49,13 +52,18 @@ func newPulsarClient(
 	clientOptions pulsar.ClientOptions,
 	producerOptions pulsar.ProducerOptions,
 	config *pulsarConfig,
+	topicSelector outil.Selector,
+	partitionKeySelector outil.Selector,
 ) (*client, error) {
 	c := &client{
-		clientOptions:   clientOptions,
-		producerOptions: producerOptions,
-		observer:        observer,
-		beat:            beat,
-		config:          config,
+		clientOptions:        clientOptions,
+		producerOptions:      producerOptions,
+		observer:             observer,
+		beat:                 beat,
+		config:               config,
+		topicSelector:        topicSelector,
+		partitionKeySelector: partitionKeySelector,
+		producers:            NewProducers(),
 	}
 	return c, nil
 }
@@ -68,12 +76,7 @@ func (c *client) Connect() error {
 		logp.Debug("Pulsar", "Create pulsar client failed: %v", err)
 		return err
 	}
-	logp.Info("start create pulsar producer")
-	c.producer, err = c.pulsarClient.CreateProducer(c.producerOptions)
-	if err != nil {
-		logp.Debug("Pulsar", "Create pulsar producer failed: %v", err)
-		return err
-	}
+
 	logp.Info("start create encoder")
 	c.codec, err = codec.CreateEncoder(c.beat, c.config.Codec)
 	if err != nil {
@@ -85,6 +88,7 @@ func (c *client) Connect() error {
 }
 
 func (c *client) Close() error {
+	c.producers.Close()
 	c.pulsarClient.Close()
 	return nil
 }
@@ -105,10 +109,17 @@ func (c *client) Publish(_ context.Context, batch publisher.Batch) error {
 		buf := make([]byte, len(serializedEvent))
 		copy(buf, serializedEvent)
 		logp.Debug("Pulsar", "Success encode events: %d", i)
+		topic := selectTopic(&event.Content, c)
+		producer, err := c.producers.LoadProducer(topic, c)
+		if err != nil {
+			logp.Err("load pulsar producer{topic=%s} failed: %v", topic, err)
+			return err
+		}
+
 		pTime := time.Now()
-		c.producer.SendAsync(context.Background(), &pulsar.ProducerMessage{
+		producer.SendAsync(context.Background(), &pulsar.ProducerMessage{
 			EventTime: pTime,
-			Key:       fmt.Sprintf("%d", pTime.Nanosecond()),
+			Key:       selectPartitionKey(&event.Content, pTime, c),
 			Payload:   buf,
 		}, func(msgId pulsar.MessageID, prodMsg *pulsar.ProducerMessage, err error) {
 			if err != nil {
@@ -126,4 +137,30 @@ func (c *client) Publish(_ context.Context, batch publisher.Batch) error {
 
 func (c *client) String() string {
 	return "file(" + c.clientOptions.URL + ")"
+}
+
+func selectTopic(event *beat.Event, client *client) string {
+	topic, err := client.topicSelector.Select(event)
+	if err != nil {
+		logp.Err("select topic failed with %v", err)
+	}
+	if topic == "" {
+		topic = client.producerOptions.Topic
+	}
+	logp.Debug("Pulsar", "Selected topic: %s", topic)
+
+	return topic
+}
+
+func selectPartitionKey(event *beat.Event, eventTime time.Time, client *client) string {
+	partitionKey, err := client.partitionKeySelector.Select(event)
+	if err != nil {
+		logp.Err("select partitionKey failed with %v", err)
+	}
+	if partitionKey == "" {
+		partitionKey = fmt.Sprintf("%d", eventTime.Nanosecond())
+	}
+	logp.Debug("Pulsar", "Selected partitionKey: %s", partitionKey)
+
+	return partitionKey
 }
