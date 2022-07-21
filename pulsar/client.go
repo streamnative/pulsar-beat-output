@@ -63,7 +63,7 @@ func newPulsarClient(
 		config:               config,
 		topicSelector:        topicSelector,
 		partitionKeySelector: partitionKeySelector,
-		producers:            NewProducers(),
+		producers:            NewProducers(config.MaxCacheProducers),
 	}
 	return c, nil
 }

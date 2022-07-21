@@ -24,38 +24,64 @@ import (
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/elastic/beats/v7/libbeat/logp"
+	lru "github.com/hashicorp/golang-lru/simplelru"
 )
 
 type Producers struct {
-	cache map[string]pulsar.Producer
+	cache *lru.LRU
 	lock  sync.RWMutex
 }
 
-func NewProducers() *Producers {
+func NewProducers(maxProducers int) *Producers {
+	cache, err := lru.NewLRU(maxProducers, func(key interface{}, value interface{}) {
+		producer := value.(pulsar.Producer)
+		close(producer)
+	})
+	if err != nil {
+		return nil
+	}
 	return &Producers{
-		cache: make(map[string]pulsar.Producer),
+		cache: cache,
 	}
 }
 
 func (p *Producers) LoadProducer(topic string, client *client) (pulsar.Producer, error) {
-	cacheProducer := p.getProducer(topic)
-	if cacheProducer != nil {
-		return cacheProducer, nil
+	producer, ok := p.getProducer(topic)
+	if ok {
+		return producer, nil
 	}
 
-	return p.createProducer(topic, client)
+	return p.getOrCreateProducer(topic, client)
 }
 
-func (p *Producers) getProducer(topic string) pulsar.Producer {
+func (p *Producers) Len() int {
 	p.lock.RLock()
-	producer := p.cache[topic]
+	len := p.cache.Len()
+	p.lock.RUnlock()
+	return len
+}
+
+func (p *Producers) getProducer(topic string) (pulsar.Producer, bool) {
+	p.lock.RLock()
+	value, ok := p.cache.Get(topic)
 	p.lock.RUnlock()
 
-	return producer
+	if ok {
+		return value.(pulsar.Producer), ok
+	}
+	return nil, false
 }
 
-func (p *Producers) createProducer(topic string, client *client) (pulsar.Producer, error) {
+func (p *Producers) getOrCreateProducer(topic string, client *client) (pulsar.Producer, error) {
 	p.lock.Lock()
+
+	// double check
+	value, ok := p.cache.Get(topic)
+	if ok {
+		p.lock.Unlock()
+		logp.Info("pulsar producer already exists for topic: %s", topic)
+		return value.(pulsar.Producer), nil
+	}
 
 	logp.Info("creating pulsar producer for topic: %s", topic)
 	newProducerOptions := pulsar.ProducerOptions{
@@ -79,9 +105,9 @@ func (p *Producers) createProducer(topic string, client *client) (pulsar.Produce
 		PartitionsAutoDiscoveryInterval: client.producerOptions.PartitionsAutoDiscoveryInterval,
 		Encryption:                      client.producerOptions.Encryption,
 	}
-	producer, err := client.pulsarClient.CreateProducer(newProducerOptions)
+	newProducer, err := client.pulsarClient.CreateProducer(newProducerOptions)
 	if err == nil {
-		p.cache[topic] = producer
+		p.cache.Add(topic, newProducer)
 		logp.Info("created pulsar producer for topic: %s", topic)
 	} else {
 		logp.Err("creating pulsar producer{topic=%s} failed: %v", topic, err)
@@ -89,22 +115,29 @@ func (p *Producers) createProducer(topic string, client *client) (pulsar.Produce
 
 	p.lock.Unlock()
 
-	return producer, err
+	return newProducer, err
 }
 
 func (p *Producers) Close() {
 	p.lock.Lock()
-	for topic := range p.cache {
-		producer := p.cache[topic]
 
-		logp.Info("closing pulsar producer{topic=%s}", topic)
-		err := producer.Flush()
-		if err != nil {
-			logp.Err("flush pulsar producer{topic=%s} failed: %v", topic, err)
+	for key := range p.cache.Keys() {
+		if value, ok := p.cache.Peek(key); ok {
+			producer := value.(pulsar.Producer)
+			close(producer)
 		}
-
-		producer.Close()
-		logp.Info("closed pulsar producer{topic=%s}", topic)
 	}
+
 	p.lock.Unlock()
+}
+
+func close(producer pulsar.Producer) {
+	logp.Info("closing pulsar producer{topic=%s}", producer.Topic())
+	err := producer.Flush()
+	if err != nil {
+		logp.Err("flush pulsar producer{topic=%s} failed: %v", producer.Topic(), err)
+	}
+
+	producer.Close()
+	logp.Info("closed pulsar producer{topic=%s}", producer.Topic())
 }

@@ -80,7 +80,7 @@ func buildTopicSelector(cfg *common.Config) (outil.Selector, error) {
 
 func buildPartitionKeySelector(cfg *common.Config) (outil.Selector, error) {
 	return outil.BuildSelectorFromConfig(cfg, outil.Settings{
-		Key:              "partitionKey",
+		Key:              "partition_key",
 		EnableSingleOnly: true,
 		FailEmpty:        false,
 	})

@@ -81,7 +81,7 @@ func testPulsarPublishMessage(t *testing.T, cfg map[string]interface{}) {
 			map[string]interface{}{
 				"url":                       "pulsar+ssl://pulsar-authentication:6651",
 				"topic":                     "%{[topic]}",
-				"partitionKey":              "%{[partitionKey]}",
+				"partition_key":             "%{[partition_key]}",
 				"name":                      "test",
 				"use_tls":                   true,
 				"tls_trust_certs_file_path": "/go/src/github.com/streamnative/pulsar-beat-output/certs/ca.cert.pem",
@@ -95,19 +95,19 @@ func testPulsarPublishMessage(t *testing.T, cfg map[string]interface{}) {
 						{
 							Timestamp: time.Now(),
 							Fields: common.MapStr{
-								"topic":        "my-topic1",
-								"partitionKey": "partition_1",
-								"type":         "log",
-								"message":      "test123",
+								"topic":         "my-topic1",
+								"partition_key": "partition_1",
+								"type":          "log",
+								"message":       "test123",
 							},
 						},
 						{
 							Timestamp: time.Now(),
 							Fields: common.MapStr{
-								"topic":        "my-topic1",
-								"partitionKey": "partition_1",
-								"type":         "log",
-								"message":      "test123",
+								"topic":         "my-topic2",
+								"partition_key": "partition_1",
+								"type":          "log",
+								"message":       "test123",
 							},
 						},
 					},
@@ -141,6 +141,7 @@ func testPulsarPublishMessage(t *testing.T, cfg map[string]interface{}) {
 
 			expected := flatten(test.events)
 
+			assert.Equal(t, 2, output.producers.Len())
 			stored := testReadFromPulsarTopic(t, output.clientOptions, test.topic, len(expected))
 			for i, d := range expected {
 				validateJSON(t, stored[i], d)
@@ -195,7 +196,7 @@ func validateJSON(t *testing.T, message pulsar.Message, event beat.Event) {
 		t.Errorf("can not json decode event value: %v", message.Payload())
 		return
 	}
-	assert.Equal(t, message.Key(), event.Fields["partitionKey"])
+	assert.Equal(t, message.Key(), event.Fields["partition_key"])
 	assert.Equal(t, decoded["type"], event.Fields["type"])
 	assert.Equal(t, decoded["message"], event.Fields["message"])
 }

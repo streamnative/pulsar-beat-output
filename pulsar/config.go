@@ -72,15 +72,17 @@ type pulsarConfig struct {
 	Batching                           bool                   `config:"batching"`
 	BatchingMaxPublishDelay            time.Duration          `config:"batching_max_publish_delay"`
 	BatchingMaxMessages                uint                   `config:"batching_max_messages"`
+	MaxCacheProducers                  int                    `config:"max_cache_producers" validate:"min=1"`
 }
 
 func defaultConfig() pulsarConfig {
 	return pulsarConfig{
-		URL:         "pulsar://localhost:6650",
-		IOThreads:   5,
-		Topic:       "my_topic",
-		BulkMaxSize: 2048,
-		MaxRetries:  3,
+		URL:               "pulsar://localhost:6650",
+		IOThreads:         5,
+		Topic:             "my_topic",
+		BulkMaxSize:       2048,
+		MaxRetries:        3,
+		MaxCacheProducers: 8,
 	}
 }
 
