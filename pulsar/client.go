@@ -117,9 +117,10 @@ func (c *client) Publish(_ context.Context, batch publisher.Batch) error {
 		}
 
 		pTime := time.Now()
+		partitionKey := selectPartitionKey(&event.Content, pTime, c)
 		producer.SendAsync(context.Background(), &pulsar.ProducerMessage{
 			EventTime: pTime,
-			Key:       selectPartitionKey(&event.Content, pTime, c),
+			Key:       partitionKey,
 			Payload:   buf,
 		}, func(msgId pulsar.MessageID, prodMsg *pulsar.ProducerMessage, err error) {
 			if err != nil {
