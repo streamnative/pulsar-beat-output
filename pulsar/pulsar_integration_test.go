@@ -49,16 +49,6 @@ func makeConfig(t *testing.T, in map[string]interface{}) *common.Config {
 	return cfg
 }
 
-func single(fields common.MapStr) []eventInfo {
-	return []eventInfo{
-		{
-			events: []beat.Event{
-				{Timestamp: time.Now(), Fields: fields},
-			},
-		},
-	}
-}
-
 func flatten(infos []eventInfo) []beat.Event {
 	var out []beat.Event
 	for _, info := range infos {
@@ -90,7 +80,8 @@ func testPulsarPublishMessage(t *testing.T, cfg map[string]interface{}) {
 			"test single events",
 			map[string]interface{}{
 				"url":                       "pulsar+ssl://pulsar-authentication:6651",
-				"topic":                     "my-topic1",
+				"topic":                     "%{[topic]}",
+				"partition_key":             "%{[partition_key]}",
 				"name":                      "test",
 				"use_tls":                   true,
 				"tls_trust_certs_file_path": "/go/src/github.com/streamnative/pulsar-beat-output/certs/ca.cert.pem",
@@ -98,10 +89,30 @@ func testPulsarPublishMessage(t *testing.T, cfg map[string]interface{}) {
 				"private_key_path":          "/go/src/github.com/streamnative/pulsar-beat-output/role/admin.key-pk8.pem",
 			},
 			"my-topic1",
-			single(common.MapStr{
-				"type":    "log",
-				"message": "test123",
-			}),
+			[]eventInfo{
+				{
+					events: []beat.Event{
+						{
+							Timestamp: time.Now(),
+							Fields: common.MapStr{
+								"topic":         "my-topic1",
+								"partition_key": "partition_1",
+								"type":          "log",
+								"message":       "test123",
+							},
+						},
+						{
+							Timestamp: time.Now(),
+							Fields: common.MapStr{
+								"topic":         "my-topic2",
+								"partition_key": "partition_1",
+								"type":          "log",
+								"message":       "test123",
+							},
+						},
+					},
+				},
+			},
 		},
 	}
 	for i, test := range tests {
@@ -130,9 +141,10 @@ func testPulsarPublishMessage(t *testing.T, cfg map[string]interface{}) {
 
 			expected := flatten(test.events)
 
+			assert.Equal(t, 2, output.producers.Len())
 			stored := testReadFromPulsarTopic(t, output.clientOptions, test.topic, len(expected))
 			for i, d := range expected {
-				validateJSON(t, stored[i].Payload(), d)
+				validateJSON(t, stored[i], d)
 			}
 		})
 	}
@@ -177,13 +189,14 @@ func testReadFromPulsarTopic(
 	return messages
 }
 
-func validateJSON(t *testing.T, value []byte, event beat.Event) {
+func validateJSON(t *testing.T, message pulsar.Message, event beat.Event) {
 	var decoded map[string]interface{}
-	err := json.Unmarshal(value, &decoded)
+	err := json.Unmarshal(message.Payload(), &decoded)
 	if err != nil {
-		t.Errorf("can not json decode event value: %v", value)
+		t.Errorf("can not json decode event value: %v", message.Payload())
 		return
 	}
+	assert.Equal(t, message.Key(), event.Fields["partition_key"])
 	assert.Equal(t, decoded["type"], event.Fields["type"])
 	assert.Equal(t, decoded["message"], event.Fields["message"])
 }

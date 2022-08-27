@@ -24,6 +24,7 @@ import (
 	"github.com/elastic/beats/v7/libbeat/common"
 	"github.com/elastic/beats/v7/libbeat/logp"
 	"github.com/elastic/beats/v7/libbeat/outputs"
+	"github.com/elastic/beats/v7/libbeat/outputs/outil"
 )
 
 func init() {
@@ -47,7 +48,18 @@ func makePulsar(
 	if err != nil {
 		return outputs.Fail(err)
 	}
-	client, err := newPulsarClient(beat, observer, *clientOptions, *producerOptions, &config)
+
+	topicSelector, err := buildTopicSelector(cfg)
+	if err != nil {
+		return outputs.Fail(err)
+	}
+
+	partitionKeySelector, err := buildPartitionKeySelector(cfg)
+	if err != nil {
+		return outputs.Fail(err)
+	}
+
+	client, err := newPulsarClient(beat, observer, *clientOptions, *producerOptions, &config, topicSelector, partitionKeySelector)
 	if err != nil {
 		return outputs.Fail(err)
 	}
@@ -56,4 +68,20 @@ func makePulsar(
 		retry = -1
 	}
 	return outputs.Success(config.BulkMaxSize, retry, client)
+}
+
+func buildTopicSelector(cfg *common.Config) (outil.Selector, error) {
+	return outil.BuildSelectorFromConfig(cfg, outil.Settings{
+		Key:              "topic",
+		EnableSingleOnly: true,
+		FailEmpty:        true,
+	})
+}
+
+func buildPartitionKeySelector(cfg *common.Config) (outil.Selector, error) {
+	return outil.BuildSelectorFromConfig(cfg, outil.Settings{
+		Key:              "partition_key",
+		EnableSingleOnly: true,
+		FailEmpty:        false,
+	})
 }
