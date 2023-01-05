@@ -1,10 +1,11 @@
 module github.com/streamnative/pulsar-beat-output
 
-go 1.17
+go 1.18
 
 require (
 	github.com/apache/pulsar-client-go v0.8.1
 	github.com/elastic/beats/v7 v7.15.2
+	github.com/hashicorp/golang-lru v0.5.4
 	github.com/sirupsen/logrus v1.6.0
 	github.com/stretchr/testify v1.7.0
 )
@@ -84,7 +85,6 @@ require (
 	github.com/hashicorp/errwrap v1.0.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.0 // indirect
 	github.com/hashicorp/go-uuid v1.0.2 // indirect
-	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/imdario/mergo v0.3.6 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/insomniacslk/dhcp v0.0.0-20180716145214-633285ba52b2 // indirect
