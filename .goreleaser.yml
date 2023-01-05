@@ -60,11 +60,6 @@ archives:
       - "heartbeat"
     format: "binary"
     name_template: "heartbeat_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}{{ if .Mips }}_{{ .Mips }}{{ end }}"
-  - id: "journalbeat"
-    builds:
-      - "journalbeat"
-    format: "binary"
-    name_template: "journalbeat_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}{{ if .Mips }}_{{ .Mips }}{{ end }}"
   - id: "metricbeat"
     builds:
       - "metricbeat"
