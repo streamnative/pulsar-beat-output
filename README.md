@@ -3,7 +3,7 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fstreamnative%2Fpulsar-beat-output.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fstreamnative%2Fpulsar-beat-output?ref=badge_shield)
 
-This is an output implementation of [elastic beats](https://github.com/elastic/beats) for support [Filebeat](https://github.com/elastic/beats/tree/master/filebeat), [Metricbeat](https://github.com/elastic/beats/tree/master/metricbeat), [Functionbeat](https://github.com/elastic/beats/tree/master/x-pack/functionbeat), [Winlogbeat](https://github.com/elastic/beats/tree/master/winlogbeat), [Journalbeat](https://github.com/elastic/beats/tree/master/journalbeat), [Auditbeat](https://github.com/elastic/beats/tree/master/auditbeat) to [Apache Pulsar](https://github.com/apache/pulsar)
+This is an output implementation of [elastic beats](https://github.com/elastic/beats) for support [Filebeat](https://github.com/elastic/beats/tree/master/filebeat), [Metricbeat](https://github.com/elastic/beats/tree/master/metricbeat), [Functionbeat](https://github.com/elastic/beats/tree/master/x-pack/functionbeat), [Winlogbeat](https://github.com/elastic/beats/tree/master/winlogbeat), [Auditbeat](https://github.com/elastic/beats/tree/master/auditbeat) to [Apache Pulsar](https://github.com/apache/pulsar)
 
 ### Compatibility
 This output is developed and tested using Apache Pulsar Client 2.4.0 and Beats 7.3.1
@@ -24,7 +24,6 @@ cd pulsar-beat-output
 ```
 go build -o filebeat filebeat/filebeat.go
 go build -o functionbeat functionbeat/functionbeat.go
-go build -o journalbeat journalbeat/journalbeat.go
 go build -o winlogbeat winlogbeat/winlogbeat.go
 go build -o packetbeat packetbeat/packetbeat.go
 ```
@@ -158,17 +157,6 @@ If you encounter problems with dynamic libraries，please reference:https://puls
 
 #### Build Packetbeat
 Reference https://github.com/elastic/beats/issues/11054.
-
-#### Build journalbeat.go
-
-```
-systemd/sd-journal.h: No such file or directory
-```
-
-```
-apt-get update
-apt-get install libsystemd-dev
-```
 
 #### Build auditbeat.go
 ```
