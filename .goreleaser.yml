@@ -26,16 +26,6 @@ builds:
     goarch:
       - arm64
       - amd64
-  - id: "journalbeat"
-    env:
-      - CGO_ENABLED=0
-    dir: "journalbeat"
-    main: ./journalbeat.go
-    goos:
-      - linux
-    goarch:
-      - arm64
-      - amd64
   - id: "metricbeat"
     dir: "metricbeat"
     main: ./metricbeat.go
