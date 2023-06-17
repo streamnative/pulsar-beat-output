@@ -1,10 +1,12 @@
-FROM golang:1.12.4
+FROM golang:1.18 as build-env
 
-# Apache pulsar go client dependency package
-RUN wget https://archive.apache.org/dist/pulsar/pulsar-2.3.0/DEB/apache-pulsar-client.deb
-RUN wget https://archive.apache.org/dist/pulsar/pulsar-2.3.0/DEB/apache-pulsar-client-dev.deb
-RUN dpkg -i apache-pulsar-client.deb
-RUN dpkg -i apache-pulsar-client-dev.deb
+WORKDIR /go/src/github.com/streamnative/pulsar-beat-output
+ADD . /go/src/github.com/streamnative/pulsar-beat-output
 
-RUN go get github.com/streamnative/pulsar-beat-output
-CMD /bin/bash
+RUN CGO_ENABLED=0 go build -o /go/bin/filebeat github.com/streamnative/pulsar-beat-output/filebeat
+RUN CGO_ENABLED=0 go build -o /go/bin/heartbeat github.com/streamnative/pulsar-beat-output/heartbeat
+RUN CGO_ENABLED=0 go build -o /go/bin/metricbeat github.com/streamnative/pulsar-beat-output/metricbeat
+RUN CGO_ENABLED=0 go build -o /go/bin/packetbeat github.com/streamnative/pulsar-beat-output/packetbeat
+RUN CGO_ENABLED=0 go build -o /go/bin/auditbeat github.com/streamnative/pulsar-beat-output/auditbeat
+RUN CGO_ENABLED=0 go build -o /go/bin/winlogbeat github.com/streamnative/pulsar-beat-output/winlogbeat
+
