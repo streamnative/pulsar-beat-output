@@ -40,12 +40,12 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Docker meta for filebeat
-          id: docker_meta_filebeat
-          uses: crazy-max/ghaction-docker-meta@v1
-          with:
-            images: |
-              streamnative/filebeat
-            tag-sha: true
+        id: docker_meta_filebeat
+        uses: crazy-max/ghaction-docker-meta@v1
+        with:
+          images: |
+            streamnative/filebeat
+          tag-sha: true
 
       - name: Setup tmate session
         uses: mxschmitt/action-tmate@v3
