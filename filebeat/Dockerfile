@@ -1,3 +1,4 @@
 FROM elastic/filebeat:7.17.5
 
-COPY --from=build-env /go/bin/filebeat /usr/share/filebeat/
+USER root
+COPY dist/filebeat_linux_amd64_v1/beat /usr/share/filebeat
