@@ -47,6 +47,9 @@ jobs:
               streamnative/filebeat
             tag-sha: true
 
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+
       - name: Build and push beat image
           uses: docker/build-push-action@v2
           with:
