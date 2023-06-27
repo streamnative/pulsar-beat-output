@@ -51,10 +51,10 @@ jobs:
         uses: mxschmitt/action-tmate@v3
 
       - name: Build and push beat image
-          uses: docker/build-push-action@v2
-          with:
-            context: .
-            file: ./filebeat/Dockerfile
-            push: true
-            tags: ${{ steps.docker_meta_filebeat.outputs.tags }}
-            labels: ${{ steps.docker_meta_filebeat.outputs.labels }}
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ./filebeat/Dockerfile
+          push: true
+          tags: ${{ steps.docker_meta_filebeat.outputs.tags }}
+          labels: ${{ steps.docker_meta_filebeat.outputs.labels }}
