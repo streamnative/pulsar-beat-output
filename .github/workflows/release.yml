@@ -10,7 +10,7 @@ env:
 
 jobs:
   goreleaser:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
       - name: Set up Go
         uses: actions/setup-go@v2
@@ -29,3 +29,32 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.BEAT_ACCESS_TOKEN }}
           GOPATH: /home/runner/work/pulsar-beat-output/pulsar-beat-output/go
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USER }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Docker meta for filebeat
+        id: docker_meta_filebeat
+        uses: crazy-max/ghaction-docker-meta@v1
+        with:
+          images: |
+            streamnative/filebeat
+          tag-sha: true
+
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+
+      - name: Build and push beat image
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ./filebeat/Dockerfile
+          push: true
+          tags: ${{ steps.docker_meta_filebeat.outputs.tags }}
+          labels: ${{ steps.docker_meta_filebeat.outputs.labels }}
