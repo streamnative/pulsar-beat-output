@@ -13,19 +13,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set up Go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v5
         with:
-          go-version: 1.18
+          go-version: 1.21.11
       - name: Checkout
         uses: actions/checkout@v2
         with:
           fetch-depth: 0
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v2.1.1
+        uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
           version: latest
-          args: release --rm-dist
+          args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.BEAT_ACCESS_TOKEN }}
           GOPATH: /home/runner/work/pulsar-beat-output/pulsar-beat-output/go
