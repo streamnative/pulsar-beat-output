@@ -73,6 +73,9 @@ type pulsarConfig struct {
 	BatchingMaxPublishDelay            time.Duration          `config:"batching_max_publish_delay"`
 	BatchingMaxMessages                uint                   `config:"batching_max_messages"`
 	MaxCacheProducers                  int                    `config:"max_cache_producers" validate:"min=1"`
+
+	// exit immediately if the connection to pulsar fails
+	FastFail bool `config:"fast_fail"`
 }
 
 func defaultConfig() pulsarConfig {
@@ -83,6 +86,7 @@ func defaultConfig() pulsarConfig {
 		BulkMaxSize:       2048,
 		MaxRetries:        3,
 		MaxCacheProducers: 8,
+		FastFail:          true,
 	}
 }
 
