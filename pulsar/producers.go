@@ -20,6 +20,7 @@
 package pulsar
 
 import (
+	"os"
 	"sync"
 
 	"github.com/apache/pulsar-client-go/pulsar"
@@ -111,6 +112,9 @@ func (p *Producers) getOrCreateProducer(topic string, client *client) (pulsar.Pr
 		logp.Info("created pulsar producer for topic: %s", topic)
 	} else {
 		logp.Err("creating pulsar producer{topic=%s} failed: %v", topic, err)
+		if client.config.FastFail {
+			os.Exit(1)
+		}
 	}
 
 	p.lock.Unlock()
