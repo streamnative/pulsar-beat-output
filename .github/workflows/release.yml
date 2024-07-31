@@ -45,7 +45,6 @@ jobs:
         with:
           images: |
             streamnative/filebeat
-          tag-sha: true
 
       - name: Build and push beat image
         uses: docker/build-push-action@v2
