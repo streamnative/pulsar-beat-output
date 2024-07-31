@@ -27,7 +27,7 @@ jobs:
           version: latest
           args: release --clean
         env:
-          GITHUB_TOKEN: ${{ secrets.BEAT_ACCESS_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.SNBOT_GITHUB_TOKEN }}
           GOPATH: /home/runner/work/pulsar-beat-output/pulsar-beat-output/go
 
       - name: Set up Docker Buildx
