@@ -25,7 +25,7 @@ jobs:
         with:
           distribution: goreleaser
           version: latest
-          args: release --rm-dist
+          args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.BEAT_ACCESS_TOKEN }}
           GOPATH: /home/runner/work/pulsar-beat-output/pulsar-beat-output/go
